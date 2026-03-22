@@ -1,9 +1,11 @@
 import { env } from './shared/config/env';
 import { db } from './shared/database/connection';
+import { runMigrations } from './shared/database/migrations';
 import { log } from './shared/utils/logger';
 import { initializeApplication } from './app';
 
 async function bootstrap() {
+  await runMigrations('up');
   const app = await initializeApplication();
 
   const server = app.listen(env.PORT, () => {

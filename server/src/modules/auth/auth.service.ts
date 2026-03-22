@@ -91,8 +91,13 @@ class AuthService {
 
     await redis.set(this.getSignupKey(emailHash), signupData, REDIS_TTL.OTP);
 
-    // Send OTP email
-    await this.dispatchSignupOtp(emailLower, otp, input.name);
+    // Send OTP email in background to keep signup response fast.
+    void this.dispatchSignupOtp(emailLower, otp, input.name).catch((error) => {
+      log.error('Background signup OTP dispatch failed', {
+        email: this.maskEmail(emailLower),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     return {
       expiresIn: AUTH.OTP_EXPIRY_SECONDS,

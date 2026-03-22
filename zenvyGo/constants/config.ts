@@ -1,15 +1,26 @@
 import Constants from 'expo-constants';
 
 const DEFAULT_API_URL =
-  'https://4637-2401-4900-b75b-deb-d06d-d750-81ef-3d9d.ngrok-free.app/api/v1';
+  'https://zenvygo.onrender.com/api/v1';
 
 const configuredApiUrl =
   process.env.EXPO_PUBLIC_API_URL ??
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
   DEFAULT_API_URL;
 
+const configuredAppEnv =
+  process.env.EXPO_PUBLIC_APP_ENV ??
+  (Constants.expoConfig?.extra?.appEnv as string | undefined) ??
+  'development';
+
+const configuredLogLevel ="debug" as string;
+
 export const API_URL = configuredApiUrl.replace(/\/$/, '');
+export const APP_ENV = configuredAppEnv;
+export const LOG_LEVEL = configuredLogLevel;
 
 export const config = {
   apiUrl: API_URL,
+  appEnv: APP_ENV,
+  logLevel: LOG_LEVEL,
 };

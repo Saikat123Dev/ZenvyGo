@@ -40,7 +40,7 @@ export default function ScanScreen() {
   const handleResolve = async (rawValue: string) => {
     const token = extractTagToken(rawValue);
     if (!token) {
-      setError('Scan a Sampark QR code or paste the QR token/URL.');
+      setError('Scan a ZenvyGo QR code or paste the QR token/URL.');
       return;
     }
 
@@ -115,7 +115,7 @@ export default function ScanScreen() {
     <View style={[styles.container, { backgroundColor: '#03111F' }]}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.section }]}>
         <View>
-          <Text style={styles.headerTitle}>Scan Sampark QR</Text>
+          <Text style={styles.headerTitle}>Scan ZenvyGo QR</Text>
           <Text style={styles.headerSubtitle}>
             Resolve a tag, choose a reason, and create a contact request.
           </Text>

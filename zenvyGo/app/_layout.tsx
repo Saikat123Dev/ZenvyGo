@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -10,12 +10,13 @@ import '../global.css';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { ThemeProvider as AppThemeProvider } from '@/providers/ThemeProvider';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-// Custom navigation themes based on Sampark design
-const SamparkLightTheme = {
+// Custom navigation themes based on ZenvyGo design
+const ZenvyGoLightTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -28,7 +29,7 @@ const SamparkLightTheme = {
   },
 };
 
-const SamparkDarkTheme = {
+const ZenvyGoDarkTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
@@ -47,9 +48,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }
 
@@ -86,17 +89,17 @@ function RootNavigator() {
 
   if (status === 'loading') {
     return (
-      <ThemeProvider value={colorScheme === 'dark' ? SamparkDarkTheme : SamparkLightTheme}>
+      <NavigationThemeProvider value={colorScheme === 'dark' ? ZenvyGoDarkTheme : ZenvyGoLightTheme}>
         <View style={[styles.loadingScreen, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      </ThemeProvider>
+      </NavigationThemeProvider>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? SamparkDarkTheme : SamparkLightTheme}>
+    <NavigationThemeProvider value={colorScheme === 'dark' ? ZenvyGoDarkTheme : ZenvyGoLightTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
@@ -112,7 +115,7 @@ function RootNavigator() {
         />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-    </ThemeProvider>
+    </NavigationThemeProvider>
   );
 }
 

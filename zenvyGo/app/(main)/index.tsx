@@ -188,7 +188,7 @@ export default function HomeScreen() {
             </View>
             <Badge variant="info">Owner Workspace</Badge>
           </View>
-          <Text style={styles.heroTitle}>Your Sampark account is active</Text>
+          <Text style={styles.heroTitle}>Your ZenvyGo account is active</Text>
           <Text style={styles.heroDescription}>
             QR tags stay privacy-safe while alerts and requests are logged against your vehicles.
           </Text>

@@ -13,9 +13,12 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { apiService } from '@/lib/api';
+import { createLogger } from '@/lib/logger';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, Input } from '@/components/ui';
+
+const log = createLogger('auth-signup');
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -99,7 +102,7 @@ export default function SignupScreen() {
         Alert.alert('Error', response.error || 'Failed to sign up. Please try again.');
       }
     } catch (err: any) {
-      console.error('Signup error:', err);
+      log.error('Signup error', { error: err });
       Alert.alert('Error', 'Failed to sign up. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -131,7 +134,7 @@ export default function SignupScreen() {
               Create Account
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Sign up to get started with Sampark
+              Sign up to get started with ZenvyGo
             </Text>
           </View>
 

@@ -1,5 +1,5 @@
 /**
- * Sampark Design System - Theme Constants
+ * ZenvyGo Design System - Theme Constants
  * A professional, lightweight design system for React Native with NativeWind
  */
 

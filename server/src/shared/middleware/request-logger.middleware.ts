@@ -24,7 +24,8 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     }
 
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-    log.http(`${req.method} ${req.originalUrl}`, {
+    log.info(`${req.method} ${req.originalUrl}`, {
+      event: 'http',
       statusCode: res.statusCode,
       durationMs: Number(durationMs.toFixed(2)),
       traceId: req.traceId,

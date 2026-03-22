@@ -18,8 +18,11 @@ import {
   Globe,
   LogOut,
   Mail,
+  Monitor,
+  Moon,
   PencilLine,
   Shield,
+  Sun,
   User,
   X,
 } from 'lucide-react-native';
@@ -30,6 +33,7 @@ import { apiService } from '@/lib/api';
 import { LANGUAGE_OPTIONS } from '@/lib/domain';
 import { formatLanguage, maskEmail } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
+import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
 
 interface ActivitySummary {
   vehicles: number;
@@ -43,10 +47,12 @@ export default function ProfileScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const { user, finishAuthentication, signOut } = useAuth();
+  const { themePreference, setThemePreference } = useThemePreference();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
     vehicles: 0,
     tags: 0,
@@ -57,6 +63,39 @@ export default function ProfileScreen() {
   const [profileLanguage, setProfileLanguage] = useState<'en' | 'ar'>(
     user?.language === 'ar' ? 'ar' : 'en',
   );
+
+  const themeLabel =
+    themePreference === 'system'
+      ? 'System'
+      : themePreference === 'light'
+        ? 'Light'
+        : 'Dark';
+
+  const themeOptions: Array<{
+    value: ThemePreference;
+    label: string;
+    description: string;
+    icon: typeof Sun;
+  }> = [
+    {
+      value: 'system',
+      label: 'System',
+      description: 'Match device setting',
+      icon: Monitor,
+    },
+    {
+      value: 'light',
+      label: 'Light',
+      description: 'Bright and clean',
+      icon: Sun,
+    },
+    {
+      value: 'dark',
+      label: 'Dark',
+      description: 'Easy on the eyes',
+      icon: Moon,
+    },
+  ];
 
   const loadProfileSummary = useCallback(async () => {
     setLoading(true);
@@ -188,6 +227,13 @@ export default function ProfileScreen() {
             onPress={() => setEditModalVisible(true)}
           />
           <ListItem
+            leftIcon={<Sun size={20} color={colors.textSecondary} />}
+            title="Appearance"
+            subtitle={`${themeLabel} mode`}
+            showChevron
+            onPress={() => setThemeModalVisible(true)}
+          />
+          <ListItem
             leftIcon={<Mail size={20} color={colors.textSecondary} />}
             title="Email"
             subtitle={user?.email || 'No email saved'}
@@ -258,6 +304,60 @@ export default function ProfileScreen() {
                   ]}>
                   {option.label}
                 </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ProfileModal>
+
+      <ProfileModal
+        colors={colors}
+        visible={themeModalVisible}
+        onClose={() => setThemeModalVisible(false)}
+        title="Appearance"
+        subtitle="Choose how ZenvyGo should look on this device."
+      >
+        <View style={styles.themeOptions}>
+          {themeOptions.map((option) => {
+            const selected = option.value === themePreference;
+            const Icon = option.icon;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                activeOpacity={0.85}
+                onPress={() => setThemePreference(option.value)}
+                style={[
+                  styles.themeOption,
+                  {
+                    backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
+                    borderColor: selected ? colors.primaryLight : colors.border,
+                  },
+                ]}>
+                <View
+                  style={[
+                    styles.themeIcon,
+                    {
+                      backgroundColor: selected ? colors.surface : colors.surface,
+                      borderColor: selected ? colors.primaryLight : colors.border,
+                    },
+                  ]}>
+                  <Icon size={18} color={selected ? colors.primary : colors.textSecondary} />
+                </View>
+                <View style={styles.themeCopy}>
+                  <Text
+                    style={[
+                      styles.themeLabel,
+                      { color: selected ? colors.primary : colors.text },
+                    ]}>
+                    {option.label}
+                  </Text>
+                  <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
+                    {option.description}
+                  </Text>
+                </View>
+                {selected ? (
+                  <Badge variant="primary">Active</Badge>
+                ) : null}
               </TouchableOpacity>
             );
           })}
@@ -491,6 +591,9 @@ const styles = StyleSheet.create({
   languageOptions: {
     gap: spacing.component,
   },
+  themeOptions: {
+    gap: spacing.component,
+  },
   languageOption: {
     borderWidth: 1,
     borderRadius: borderRadius.xl,
@@ -499,6 +602,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.default,
+  },
+  themeOption: {
+    borderWidth: 1,
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.section,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.component,
+  },
+  themeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  themeCopy: {
+    flex: 1,
+  },
+  themeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  themeDescription: {
+    fontSize: 13,
+    marginTop: 2,
   },
   languageOptionText: {
     fontSize: 15,

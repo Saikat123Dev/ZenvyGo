@@ -13,10 +13,13 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { apiService } from '@/lib/api';
+import { createLogger } from '@/lib/logger';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, Input } from '@/components/ui';
 import { useAuth } from '@/providers/AuthProvider';
+
+const log = createLogger('auth-login');
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -74,7 +77,7 @@ export default function LoginScreen() {
         Alert.alert('Login Failed', errorMessage);
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      log.error('Login error', { error: err });
       Alert.alert('Error', 'Failed to log in. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -106,7 +109,7 @@ export default function LoginScreen() {
               Welcome Back
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Log in to your Sampark account to continue
+              Log in to your ZenvyGo account to continue
             </Text>
           </View>
 

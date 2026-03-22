@@ -13,9 +13,12 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { apiService } from '@/lib/api';
+import { createLogger } from '@/lib/logger';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, Input, OTPInput } from '@/components/ui';
+
+const log = createLogger('auth-forgot-password');
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -111,7 +114,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('Error', response.error || 'Failed to send reset code. Please try again.');
       }
     } catch (err: any) {
-      console.error('Forgot password request error:', err);
+      log.error('Forgot password request error', { error: err });
       Alert.alert('Error', 'Failed to send reset code. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -153,7 +156,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('Error', response.error || 'Failed to reset password. Please try again.');
       }
     } catch (err: any) {
-      console.error('Password reset error:', err);
+      log.error('Password reset error', { error: err });
       setErrors((current) => ({ ...current, otp: true }));
       setOtp('');
       Alert.alert('Error', 'Failed to reset password. Please try again.');
@@ -188,7 +191,7 @@ export default function ForgotPasswordScreen() {
         setCountdown(0);
       }
     } catch (err: any) {
-      console.error('Resend error:', err);
+      log.error('Resend error', { error: err });
       Alert.alert('Error', 'Failed to resend code. Please try again.');
       setCanResend(true);
       setCountdown(0);

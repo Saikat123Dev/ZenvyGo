@@ -127,7 +127,7 @@ export default function OnboardingScreen() {
         <View style={styles.logoIcon}>
           <Car size={32} color={brand[900]} strokeWidth={2} />
         </View>
-        <Text style={styles.logoText}>SAMPARK</Text>
+        <Text style={styles.logoText}>ZENVYGO</Text>
         <Text style={styles.tagline}>Connect. Protect. Respond.</Text>
       </View>
 

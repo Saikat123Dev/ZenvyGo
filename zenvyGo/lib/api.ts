@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/constants/config';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('api');
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -147,7 +150,7 @@ class ApiService {
         return { accessToken, refreshToken };
       }
     } catch (error) {
-      console.error('Failed to get stored tokens:', error);
+      log.error('Failed to get stored tokens', { error });
     }
     return null;
   }
@@ -159,7 +162,7 @@ class ApiService {
       this.accessToken = accessToken;
       this.refreshToken = refreshToken;
     } catch (error) {
-      console.error('Failed to store tokens:', error);
+      log.error('Failed to store tokens', { error });
     }
   }
 
@@ -170,7 +173,7 @@ class ApiService {
       this.accessToken = null;
       this.refreshToken = null;
     } catch (error) {
-      console.error('Failed to clear tokens:', error);
+      log.error('Failed to clear tokens', { error });
     }
   }
 
@@ -217,7 +220,7 @@ class ApiService {
 
       return data;
     } catch (error: any) {
-      console.error('API request failed:', error);
+      log.error('API request failed', { error, endpoint });
       return {
         success: false,
         error: error.message || 'Network error',
@@ -338,7 +341,7 @@ class ApiService {
       await this.clearTokens();
       return false;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      log.error('Token refresh failed', { error });
       await this.clearTokens();
       return false;
     }

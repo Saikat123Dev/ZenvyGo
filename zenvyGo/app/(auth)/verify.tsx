@@ -13,10 +13,13 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { apiService } from '@/lib/api';
+import { createLogger } from '@/lib/logger';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, OTPInput } from '@/components/ui';
 import { useAuth } from '@/providers/AuthProvider';
+
+const log = createLogger('auth-verify');
 
 export default function VerifyScreen() {
   const router = useRouter();
@@ -84,7 +87,7 @@ export default function VerifyScreen() {
         Alert.alert('Error', response.error || 'Verification failed. Please try again.');
       }
     } catch (err: any) {
-      console.error('Verification error:', err);
+      log.error('Verification error', { error: err });
       setError(true);
       setOtp('');
       Alert.alert('Error', 'Verification failed. Please try again.');
@@ -119,7 +122,7 @@ export default function VerifyScreen() {
         setCountdown(0);
       }
     } catch (err: any) {
-      console.error('Resend error:', err);
+      log.error('Resend error', { error: err });
       Alert.alert('Error', 'Failed to resend code. Please try again.');
       setCanResend(true);
       setCountdown(0);

@@ -41,19 +41,6 @@ export const logger = winston.createLogger({
     new winston.transports.Console({
       format: isDevelopment ? consoleFormat : jsonFormat,
     }),
-    // File transport for errors
-    new winston.transports.File({
-      filename: '/tmp/logs/error.log',
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // File transport for all logs
-    new winston.transports.File({
-      filename: '/tmp/logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
   ],
   // Don't exit on uncaught exceptions
   exitOnError: false,
@@ -146,15 +133,6 @@ export function createChildLogger(context: Record<string, unknown>): typeof log 
     debug: (message: string, meta?: Record<string, unknown>) => childLogger.debug(message, meta),
     http: (message: string, meta?: Record<string, unknown>) => childLogger.http(message, meta),
   };
-}
-
-// Create logs directory if it doesn't exist (for file transports)
-import fs from 'fs';
-import path from 'path';
-
-const logsDir = path.join('/tmp', 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 export default logger;

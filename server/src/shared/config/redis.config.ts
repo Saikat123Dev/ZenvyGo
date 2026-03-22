@@ -1,17 +1,19 @@
 import type { RedisOptions } from 'ioredis';
-import { env } from './env';
+import { env, isDevelopment } from './env';
 
 export const redisConfig: RedisOptions = {
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
   password: env.REDIS_PASSWORD || undefined,
   db: env.REDIS_DB,
-  tls: env.REDIS_HOST !== 'localhost' ? { rejectUnauthorized: false } : undefined,
+  tls: env.REDIS_URL?.startsWith('rediss://')
+    ? { rejectUnauthorized: false }
+    : undefined,
   connectTimeout: 10000,
   lazyConnect: false,
   enableReadyCheck: true,
-  maxRetriesPerRequest: 3,
-  retryStrategy: (attempt: number) => Math.min(attempt * 100, 2000),
+  maxRetriesPerRequest: isDevelopment ? 0 : 3,
+  retryStrategy: isDevelopment ? () => null : (attempt: number) => Math.min(attempt * 100, 2000),
 };
 
 export const REDIS_PREFIXES = {

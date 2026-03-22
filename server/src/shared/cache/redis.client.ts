@@ -34,8 +34,12 @@ class RedisClient {
     try {
       if (env.REDIS_URL) {
         this.redis = new Redis(env.REDIS_URL, {
-          maxRetriesPerRequest: 3,
-          retryStrategy: (attempt: number) => Math.min(attempt * 100, 2000),
+          maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+          retryStrategy: redisConfig.retryStrategy,
+          enableReadyCheck: redisConfig.enableReadyCheck,
+          connectTimeout: redisConfig.connectTimeout,
+          lazyConnect: redisConfig.lazyConnect,
+          tls: redisConfig.tls,
         });
       } else {
         this.redis = new Redis(redisConfig);

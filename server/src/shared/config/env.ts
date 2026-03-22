@@ -19,10 +19,10 @@ const envSchema = z.object({
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
 
   REDIS_URL: z.string().optional(),
-  REDIS_HOST: z.string().min(1, 'Redis host is required'),
-  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_HOST: z.string().optional(),
+  REDIS_PORT: z.coerce.number().int().positive().optional(),
   REDIS_PASSWORD: z.string().optional(),
-  REDIS_DB: z.coerce.number().int().min(0).default(0),
+  REDIS_DB: z.coerce.number().int().min(0).optional(),
 
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_ACCESS_EXPIRY: z.string().default('1h'),
@@ -46,6 +46,41 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+}).superRefine((value, ctx) => {
+  if (!value.REDIS_URL && !value.REDIS_HOST) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['REDIS_URL'],
+      message: 'Redis configuration is required (set REDIS_URL or REDIS_HOST).',
+    });
+  }
+}).transform((value) => {
+  if (!value.REDIS_URL) {
+    return {
+      ...value,
+      REDIS_PORT: value.REDIS_PORT ?? 6379,
+      REDIS_DB: value.REDIS_DB ?? 0,
+    };
+  }
+
+  try {
+    const url = new URL(value.REDIS_URL);
+    const dbFromPath = url.pathname && url.pathname !== '/' ? Number(url.pathname.slice(1)) : undefined;
+
+    return {
+      ...value,
+      REDIS_HOST: value.REDIS_HOST ?? url.hostname,
+      REDIS_PORT: value.REDIS_PORT ?? (url.port ? Number(url.port) : 6379),
+      REDIS_PASSWORD: value.REDIS_PASSWORD ?? (url.password || undefined),
+      REDIS_DB: value.REDIS_DB ?? (Number.isFinite(dbFromPath) ? dbFromPath : 0),
+    };
+  } catch {
+    return {
+      ...value,
+      REDIS_PORT: value.REDIS_PORT ?? 6379,
+      REDIS_DB: value.REDIS_DB ?? 0,
+    };
+  }
 });
 
 function validateEnv() {

@@ -16,7 +16,7 @@ var envSchema = zod_1.z.object({
     DB_PORT: zod_1.z.coerce.number().int().positive().default(3306),
     DB_NAME: zod_1.z.string().min(1, 'Database name is required'),
     DB_USER: zod_1.z.string().min(1, 'Database user is required'),
-    DB_PASSWORD: zod_1.z.string().default(''),
+    DB_PASSWORD: zod_1.z.string().default(''),     
     DB_CONNECTION_LIMIT: zod_1.z.coerce.number().int().positive().default(10),
     JWT_SECRET: zod_1.z.string().min(32, 'JWT secret must be at least 32 characters'),
     JWT_ACCESS_EXPIRY: zod_1.z.string().default('1h'),

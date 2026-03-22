@@ -152,7 +152,7 @@ export function createChildLogger(context: Record<string, unknown>): typeof log 
 import fs from 'fs';
 import path from 'path';
 
-const logsDir = path.join(process.cwd(), 'logs');
+const logsDir = path.join('/tmp', 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }

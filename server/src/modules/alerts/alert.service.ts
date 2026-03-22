@@ -1,0 +1,81 @@
+import { NotFoundError } from '../../shared/utils/api-error';
+import { generateUUID } from '../../shared/utils/crypto';
+import { AlertRepository, type AlertRecord } from './alert.repository';
+
+export interface Alert {
+  id: string;
+  userId: string;
+  sessionId: string | null;
+  title: string;
+  body: string;
+  severity: 'info' | 'warning' | 'critical';
+  channel: 'system' | 'in_app';
+  isRead: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+class AlertService {
+  private readonly repository = new AlertRepository();
+
+  public async createSystemAlert(input: {
+    userId: string;
+    sessionId?: string | null;
+    title: string;
+    body: string;
+    severity?: 'info' | 'warning' | 'critical';
+    metadata?: Record<string, unknown> | null;
+  }): Promise<void> {
+    await this.repository.create({
+      id: generateUUID(),
+      userId: input.userId,
+      sessionId: input.sessionId ?? null,
+      title: input.title,
+      body: input.body,
+      severity: input.severity ?? 'info',
+      channel: 'system',
+      metadata: input.metadata ?? null,
+    });
+  }
+
+  public async listByUser(userId: string): Promise<Alert[]> {
+    const records = await this.repository.listByUser(userId);
+    return records.map((record) => this.toAlert(record));
+  }
+
+  public async markRead(userId: string, alertId: string): Promise<Alert> {
+    const existing = await this.repository.findByIdForUser(alertId, userId);
+    if (!existing) {
+      throw new NotFoundError('Alert not found');
+    }
+
+    await this.repository.markRead(alertId, userId);
+    const updated = await this.repository.findByIdForUser(alertId, userId);
+    if (!updated) {
+      throw new Error('Failed to load alert');
+    }
+
+    return this.toAlert(updated);
+  }
+
+  private toAlert(record: AlertRecord): Alert {
+    return {
+      id: record.id,
+      userId: record.user_id,
+      sessionId: record.session_id,
+      title: record.title,
+      body: record.body,
+      severity: record.severity,
+      channel: record.channel,
+      isRead: Boolean(record.is_read),
+      metadata: record.metadata
+        ? (JSON.parse(record.metadata) as Record<string, unknown>)
+        : null,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    };
+  }
+}
+
+export const alertService = new AlertService();

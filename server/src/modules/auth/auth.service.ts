@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { AUTH } from '../../shared/config/constants';
 import { env, isDevelopment } from '../../shared/config/env';
 import { rateLimitService } from '../../shared/cache/rate-limiter.service';

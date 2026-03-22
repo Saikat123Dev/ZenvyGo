@@ -18,6 +18,7 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().default(''),
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
 
+  REDIS_URL: z.string().optional(),
   REDIS_HOST: z.string().min(1, 'Redis host is required'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),

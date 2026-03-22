@@ -6,6 +6,7 @@ export const redisConfig: RedisOptions = {
   port: env.REDIS_PORT,
   password: env.REDIS_PASSWORD || undefined,
   db: env.REDIS_DB,
+  tls: env.REDIS_HOST !== 'localhost' ? { rejectUnauthorized: false } : undefined,
   connectTimeout: 10000,
   lazyConnect: false,
   enableReadyCheck: true,

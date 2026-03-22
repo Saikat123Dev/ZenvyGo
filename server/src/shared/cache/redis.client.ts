@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { redisConfig, REDIS_PREFIXES, REDIS_TTL } from '../config/redis.config';
-import { isDevelopment } from '../config/env';
+import { isDevelopment, env } from '../config/env';
 
 /**
  * Redis client singleton
@@ -32,7 +32,14 @@ class RedisClient {
     }
 
     try {
-      this.redis = new Redis(redisConfig);
+      if (env.REDIS_URL) {
+        this.redis = new Redis(env.REDIS_URL, {
+          maxRetriesPerRequest: 3,
+          retryStrategy: (attempt: number) => Math.min(attempt * 100, 2000),
+        });
+      } else {
+        this.redis = new Redis(redisConfig);
+      }
 
       // Test connection
       await this.redis.ping();

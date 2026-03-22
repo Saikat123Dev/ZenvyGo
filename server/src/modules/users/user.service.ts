@@ -1,6 +1,5 @@
 import { NotFoundError } from '../../shared/utils/api-error';
 import { cacheService } from '../../shared/cache/cache.service';
-import { generateUUID } from '../../shared/utils/crypto';
 import { UserRepository, type UserRecord } from './user.repository';
 
 export interface User {

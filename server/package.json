@@ -21,8 +21,7 @@
     "test:coverage": "jest --coverage",
     "migrate:up": "ts-node scripts/run-migrations.ts up",
     "migrate:down": "ts-node scripts/run-migrations.ts down",
-    "seed:dev": "ts-node scripts/seed-dev-data.ts",
-    "verify:whatsapp": "ts-node scripts/verify-whatsapp.ts"
+    "seed:dev": "ts-node scripts/seed-dev-data.ts"
   },
   "keywords": [
     "vehicle",

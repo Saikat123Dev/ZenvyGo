@@ -81,11 +81,11 @@ export default function OnboardingScreen() {
   ).current;
 
   const handleGetStarted = () => {
-    router.push('/(auth)/login');
+    router.push('/(auth)/signup');
   };
 
   const handleSkip = () => {
-    router.push('/(auth)/login');
+    router.push('/(auth)/signup');
   };
 
   const handleNext = () => {

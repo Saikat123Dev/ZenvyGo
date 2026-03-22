@@ -41,16 +41,7 @@ class RedisClient {
         this.redis = new Redis(redisConfig);
       }
 
-      // Test connection
-      await this.redis.ping();
-      this.isConnected = true;
-
-      if (isDevelopment) {
-        console.log('✅ Redis connection established');
-        console.log(`🔴 Connected to Redis: ${redisConfig.host}:${redisConfig.port}`);
-      }
-
-      // Set up event handlers
+      // Set up event handlers before any commands run
       this.redis.on('connect', () => {
         if (isDevelopment) {
           console.log('🔄 Redis connecting...');
@@ -82,9 +73,22 @@ class RedisClient {
         }
       });
 
+      // Test connection
+      await this.redis.ping();
+      this.isConnected = true;
+
+      if (isDevelopment) {
+        const connectionLabel = env.REDIS_URL ?? `${redisConfig.host}:${redisConfig.port}`;
+        console.log('✅ Redis connection established');
+        console.log(`🔴 Connected to Redis: ${connectionLabel}`);
+      }
     } catch (error) {
-      console.error('❌ Failed to connect to Redis:', error);
-      throw error;
+      console.warn('⚠️ Redis unavailable. Continuing without Redis.', error);
+      if (this.redis) {
+        this.redis.disconnect();
+      }
+      this.redis = null;
+      this.isConnected = false;
     }
   }
 

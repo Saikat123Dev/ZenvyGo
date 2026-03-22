@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
@@ -8,6 +9,7 @@ import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -44,16 +46,54 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+
+function RootNavigator() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { status, isAuthenticated } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
-    // Hide splash screen after app loads
-    const hideSplash = async () => {
-      await SplashScreen.hideAsync();
-    };
-    hideSplash();
-  }, []);
+    if (status !== 'loading') {
+      SplashScreen.hideAsync();
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status === 'loading') {
+      return;
+    }
+
+    const inAuthGroup = segments[0] === '(auth)';
+    const inMainGroup = segments[0] === '(main)';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace('/(auth)');
+      return;
+    }
+
+    if (isAuthenticated && !inMainGroup) {
+      router.replace('/(main)');
+    }
+  }, [isAuthenticated, router, segments, status]);
+
+  if (status === 'loading') {
+    return (
+      <ThemeProvider value={colorScheme === 'dark' ? SamparkDarkTheme : SamparkLightTheme}>
+        <View style={[styles.loadingScreen, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? SamparkDarkTheme : SamparkLightTheme}>
@@ -75,3 +115,11 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

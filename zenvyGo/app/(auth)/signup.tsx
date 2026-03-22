@@ -131,7 +131,7 @@ export default function SignupScreen() {
               Create Account
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Sign up to get started with ZenvyGo
+              Sign up to get started with Sampark
             </Text>
           </View>
 

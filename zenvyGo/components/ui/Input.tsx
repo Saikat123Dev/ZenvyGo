@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TextInputProps,
   ViewStyle,
+  TextStyle,
   TouchableOpacity,
 } from 'react-native';
 import Animated, {
@@ -24,7 +25,7 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   rightIcon?: React.ReactNode;
   onRightIconPress?: () => void;
   containerStyle?: ViewStyle;
-  inputStyle?: ViewStyle;
+  inputStyle?: TextStyle;
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
@@ -41,12 +42,13 @@ export const Input = forwardRef<TextInput, InputProps>(
       ...props
     },
     ref
-  ) => {
-    const colorScheme = useColorScheme();
-    const colors = Colors[colorScheme ?? 'light'];
-    const [isFocused, setIsFocused] = useState(false);
+    ) => {
+      const colorScheme = useColorScheme();
+      const colors = Colors[colorScheme ?? 'light'];
+      const [isFocused, setIsFocused] = useState(false);
+      const isMultiline = Boolean(props.multiline);
 
-    const borderColorValue = useSharedValue(colors.inputBorder);
+      const borderColorValue = useSharedValue(colors.inputBorder);
 
     const animatedBorderStyle = useAnimatedStyle(() => ({
       borderColor: withTiming(borderColorValue.value, { duration: animations.fast }),
@@ -81,6 +83,9 @@ export const Input = forwardRef<TextInput, InputProps>(
             {
               backgroundColor: error ? colors.inputErrorBackground : colors.inputBackground,
               borderColor: getBorderColor(),
+              minHeight: isMultiline ? 112 : componentHeights.input,
+              height: isMultiline ? undefined : componentHeights.input,
+              alignItems: isMultiline ? 'flex-start' : 'center',
             },
             animatedBorderStyle,
           ]}>
@@ -93,6 +98,7 @@ export const Input = forwardRef<TextInput, InputProps>(
               { color: colors.text },
               leftIcon ? styles.inputWithLeftIcon : undefined,
               rightIcon ? styles.inputWithRightIcon : undefined,
+              isMultiline ? styles.multilineInput : undefined,
               inputStyle,
             ]}
             placeholderTextColor={colors.inputPlaceholder}
@@ -135,8 +141,6 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'center',
-    height: componentHeights.input,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     paddingHorizontal: 16,
@@ -151,6 +155,11 @@ const styles = StyleSheet.create({
   },
   inputWithRightIcon: {
     paddingRight: 8,
+  },
+  multilineInput: {
+    paddingTop: 16,
+    paddingBottom: 16,
+    textAlignVertical: 'top',
   },
   leftIcon: {
     marginRight: 4,

@@ -16,9 +16,11 @@ import { apiService } from '@/lib/api';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, Input } from '@/components/ui';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { finishAuthentication } = useAuth();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
@@ -64,7 +66,7 @@ export default function LoginScreen() {
       const response = await apiService.login(email.trim().toLowerCase(), password);
 
       if (response.success && response.data) {
-        // Navigate to main app
+        finishAuthentication(response.data.user);
         router.replace('/(main)');
       } else {
         const errorMessage = response.error || 'Invalid email or password';
@@ -104,7 +106,7 @@ export default function LoginScreen() {
               Welcome Back
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Log in to your account to continue
+              Log in to your Sampark account to continue
             </Text>
           </View>
 
@@ -168,7 +170,7 @@ export default function LoginScreen() {
             {/* Signup Link */}
             <View style={styles.signupContainer}>
               <Text style={[styles.signupText, { color: colors.textMuted }]}>
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
               </Text>
               <TouchableOpacity onPress={() => router.replace('/(auth)/signup')}>
                 <Text style={[styles.signupLink, { color: colors.primary }]}>

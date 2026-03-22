@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -16,7 +16,7 @@ interface IconButtonProps {
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'primary' | 'outline' | 'ghost';
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function IconButton({

@@ -32,7 +32,18 @@ const envSchema = z.object({
   // SMTP Email Configuration
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_SECURE: z.preprocess((value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') {
+        return true;
+      }
+      if (normalized === 'false' || normalized === '0') {
+        return false;
+      }
+    }
+    return value;
+  }, z.boolean().default(false)),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM_EMAIL: z.string().email().optional(),

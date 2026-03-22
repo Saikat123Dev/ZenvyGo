@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,11 @@ import { apiService } from '@/lib/api';
 import { Colors, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Button, OTPInput } from '@/components/ui';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function VerifyScreen() {
   const router = useRouter();
+  const { finishAuthentication } = useAuth();
   const params = useLocalSearchParams<{ email: string; type?: string; name?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -40,13 +42,6 @@ export default function VerifyScreen() {
     }
   }, [countdown]);
 
-  // Auto-verify when OTP is complete
-  useEffect(() => {
-    if (otp.length === 6) {
-      handleVerify();
-    }
-  }, [otp]);
-
   const maskEmail = (email: string) => {
     if (!email) return '***@***.***';
     const [localPart, domain] = email.split('@');
@@ -59,7 +54,7 @@ export default function VerifyScreen() {
     return `${maskedLocal}@${domain}`;
   };
 
-  const handleVerify = async () => {
+  const handleVerify = useCallback(async () => {
     if (otp.length !== 6) {
       setError(true);
       return;
@@ -72,7 +67,7 @@ export default function VerifyScreen() {
       const response = await apiService.verifyEmail(params.email, otp);
 
       if (response.success && response.data) {
-        // Navigate to main app
+        finishAuthentication(response.data.user);
         Alert.alert(
           'Success',
           'Your email has been verified successfully!',
@@ -96,7 +91,14 @@ export default function VerifyScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [finishAuthentication, otp, params.email, router]);
+
+  // Auto-verify when OTP is complete
+  useEffect(() => {
+    if (otp.length === 6) {
+      handleVerify();
+    }
+  }, [handleVerify, otp.length]);
 
   const handleResend = async () => {
     if (!canResend) return;
@@ -190,7 +192,7 @@ export default function VerifyScreen() {
           {/* Resend */}
           <View style={styles.resendContainer}>
             <Text style={[styles.resendLabel, { color: colors.textMuted }]}>
-              Didn't receive the code?
+              Didn&apos;t receive the code?
             </Text>
             <TouchableOpacity
               onPress={handleResend}

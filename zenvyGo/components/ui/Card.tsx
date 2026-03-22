@@ -1,10 +1,9 @@
 import React from 'react';
 import {
   View,
-  StyleSheet,
   ViewStyle,
+  StyleProp,
   TouchableOpacity,
-  TouchableOpacityProps,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -18,7 +17,7 @@ const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'elevated' | 'outline' | 'highlight';
   padding?: 'none' | 'sm' | 'md' | 'lg';
   onPress?: () => void;
@@ -125,7 +124,7 @@ export function Card({
 interface VehicleCardProps {
   children: React.ReactNode;
   onPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function VehicleCard({ children, onPress, style }: VehicleCardProps) {
@@ -140,7 +139,7 @@ interface AlertCardProps {
   children: React.ReactNode;
   isUnread?: boolean;
   onPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function AlertCard({
@@ -163,7 +162,7 @@ export function AlertCard({
 interface StatCardProps {
   children: React.ReactNode;
   onPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function StatCard({ children, onPress, style }: StatCardProps) {
@@ -177,7 +176,5 @@ export function StatCard({ children, onPress, style }: StatCardProps) {
     </Card>
   );
 }
-
-const styles = StyleSheet.create({});
 
 export default Card;

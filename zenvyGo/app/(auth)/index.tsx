@@ -11,19 +11,11 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  interpolate,
-  Extrapolation,
-} from 'react-native-reanimated';
 import { Shield, QrCode, Bell, Car } from 'lucide-react-native';
-import { Colors, spacing, borderRadius, brand } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { spacing, borderRadius, brand } from '@/constants/theme';
 import { Button } from '@/components/ui';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 interface OnboardingSlide {
   id: string;
@@ -65,12 +57,9 @@ const SLIDES: OnboardingSlide[] = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const scrollX = useSharedValue(0);
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -96,7 +85,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  const renderSlide = ({ item, index }: { item: OnboardingSlide; index: number }) => (
+  const renderSlide = ({ item }: { item: OnboardingSlide; index: number }) => (
     <View style={styles.slide}>
       <View style={styles.iconContainer}>{item.icon}</View>
       <Text style={styles.title}>{item.title}</Text>
@@ -107,12 +96,6 @@ export default function OnboardingScreen() {
   const renderPagination = () => (
     <View style={styles.pagination}>
       {SLIDES.map((_, index) => {
-        const inputRange = [
-          (index - 1) * width,
-          index * width,
-          (index + 1) * width,
-        ];
-
         return (
           <View
             key={index}

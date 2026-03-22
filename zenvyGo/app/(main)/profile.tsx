@@ -1,65 +1,138 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
+  ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
-  User,
-  Bell,
-  Moon,
+  BadgeCheck,
   Globe,
-  FileText,
-  HelpCircle,
   LogOut,
-  ChevronRight,
+  Mail,
+  PencilLine,
   Shield,
-  Smartphone,
+  User,
+  X,
 } from 'lucide-react-native';
-import { Colors, spacing, borderRadius, shadows, brand } from '@/constants/theme';
+import { Badge, Button, Card, Input, ListItem } from '@/components/ui';
+import { Colors, ThemeColors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ListItem, Divider, Button } from '@/components/ui';
+import { apiService } from '@/lib/api';
+import { LANGUAGE_OPTIONS } from '@/lib/domain';
+import { formatLanguage, maskEmail } from '@/lib/format';
+import { useAuth } from '@/providers/AuthProvider';
 
-// Mock user data
-const MOCK_USER = {
-  name: 'Ahmed Hassan',
-  phone: '+971 50 *** **67',
-  email: 'ahmed@example.com',
-  avatarUrl: null,
-};
+interface ActivitySummary {
+  vehicles: number;
+  tags: number;
+  unreadAlerts: number;
+  openRequests: number;
+}
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { user, finishAuthentication, signOut } = useAuth();
 
-  const [darkMode, setDarkMode] = useState(colorScheme === 'dark');
-  const [notifications, setNotifications] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
+    vehicles: 0,
+    tags: 0,
+    unreadAlerts: 0,
+    openRequests: 0,
+  });
+  const [profileName, setProfileName] = useState(user?.name ?? '');
+  const [profileLanguage, setProfileLanguage] = useState<'en' | 'ar'>(
+    user?.language === 'ar' ? 'ar' : 'en',
+  );
+
+  const loadProfileSummary = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse] = await Promise.all([
+        apiService.listVehicles(),
+        apiService.listTags(),
+        apiService.listAlerts(),
+        apiService.listContactSessions(),
+      ]);
+
+      const failure =
+        [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse].find(
+          (response) => !response.success,
+        ) ?? null;
+
+      if (failure) {
+        throw new Error(failure.error || 'Unable to load profile');
+      }
+
+      setActivitySummary({
+        vehicles: vehiclesResponse.data?.length ?? 0,
+        tags: tagsResponse.data?.length ?? 0,
+        unreadAlerts: alertsResponse.data?.filter((item) => !item.isRead).length ?? 0,
+        openRequests:
+          sessionsResponse.data?.filter((item) => item.status === 'initiated').length ?? 0,
+      });
+    } catch {
+      setActivitySummary({
+        vehicles: 0,
+        tags: 0,
+        unreadAlerts: 0,
+        openRequests: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setProfileName(user?.name ?? '');
+      setProfileLanguage(user?.language === 'ar' ? 'ar' : 'en');
+      loadProfileSummary();
+    }, [loadProfileSummary, user?.language, user?.name]),
+  );
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    const response = await apiService.updateProfile({
+      name: profileName.trim() || null,
+      language: profileLanguage,
+    });
+    setSaving(false);
+
+    if (!response.success || !response.data) {
+      Alert.alert('Unable to update profile', response.error || 'Please try again.');
+      return;
+    }
+
+    finishAuthentication(response.data);
+    setEditModalVisible(false);
+  };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            // Perform logout
-            router.replace('/(auth)');
-          },
+    Alert.alert('Log out', 'This will clear the saved session on this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
         },
-      ],
-      { cancelable: true }
-    );
+      },
+    ]);
   };
 
   return (
@@ -68,144 +141,197 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + spacing.section },
+          { paddingTop: insets.top + spacing.section, paddingBottom: spacing.screen },
         ]}>
-        {/* Header */}
         <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
 
-        {/* User Card */}
-        <View style={[styles.userCard, { backgroundColor: colors.surface }]}>
+        <Card style={styles.userCard}>
           <View style={[styles.avatar, { backgroundColor: colors.primaryLighter }]}>
-            <User size={36} color={colors.primary} strokeWidth={1.5} />
+            <User size={38} color={colors.primary} strokeWidth={1.5} />
           </View>
           <Text style={[styles.userName, { color: colors.text }]}>
-            {MOCK_USER.name}
+            {user?.name || 'Account owner'}
           </Text>
-          <Text style={[styles.userPhone, { color: colors.textSecondary }]}>
-            {MOCK_USER.phone}
+          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+            {maskEmail(user?.email)}
           </Text>
-        </View>
+          <View style={styles.userMetaRow}>
+            <Badge variant="success">Verified</Badge>
+            <Badge variant="primary">{formatLanguage(user?.language || 'en')}</Badge>
+            <Badge variant="info">{user?.country || 'US'}</Badge>
+          </View>
+        </Card>
 
-        {/* Account Section */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            ACCOUNT
-          </Text>
+        <Card style={styles.summaryCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACTIVITY</Text>
+          {loading ? (
+            <View style={styles.summaryLoading}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.summaryGrid}>
+              <SummaryMetric label="Vehicles" value={activitySummary.vehicles} colors={colors} />
+              <SummaryMetric label="Tags" value={activitySummary.tags} colors={colors} />
+              <SummaryMetric label="Unread Alerts" value={activitySummary.unreadAlerts} colors={colors} />
+              <SummaryMetric label="Open Requests" value={activitySummary.openRequests} colors={colors} />
+            </View>
+          )}
+        </Card>
 
+        <Card style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACCOUNT</Text>
           <ListItem
-            leftIcon={<User size={20} color={colors.textSecondary} />}
+            leftIcon={<PencilLine size={20} color={colors.textSecondary} />}
             title="Edit Profile"
+            subtitle="Update your display name and preferred language"
             showChevron
-            onPress={() => {}}
+            onPress={() => setEditModalVisible(true)}
           />
-
           <ListItem
-            leftIcon={<Bell size={20} color={colors.textSecondary} />}
-            title="Notifications"
-            rightContent={
-              <Switch
-                value={notifications}
-                onValueChange={setNotifications}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            bottomBorder={false}
+            leftIcon={<Mail size={20} color={colors.textSecondary} />}
+            title="Email"
+            subtitle={user?.email || 'No email saved'}
           />
-        </View>
-
-        {/* Preferences Section */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            PREFERENCES
-          </Text>
-
-          <ListItem
-            leftIcon={<Moon size={20} color={colors.textSecondary} />}
-            title="Dark Mode"
-            rightContent={
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor="#FFFFFF"
-              />
-            }
-          />
-
           <ListItem
             leftIcon={<Globe size={20} color={colors.textSecondary} />}
             title="Language"
-            subtitle="English"
-            showChevron
-            onPress={() => {}}
-            bottomBorder={false}
+            subtitle={formatLanguage(user?.language || 'en')}
           />
-        </View>
-
-        {/* Security Section */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            SECURITY
-          </Text>
-
           <ListItem
             leftIcon={<Shield size={20} color={colors.textSecondary} />}
-            title="Privacy Settings"
-            showChevron
-            onPress={() => {}}
-          />
-
-          <ListItem
-            leftIcon={<Smartphone size={20} color={colors.textSecondary} />}
-            title="Active Sessions"
-            showChevron
-            onPress={() => {}}
+            title="Privacy"
+            subtitle="QR contacts are routed through the platform without exposing your real number."
             bottomBorder={false}
           />
-        </View>
+        </Card>
 
-        {/* Support Section */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            SUPPORT
-          </Text>
-
-          <ListItem
-            leftIcon={<FileText size={20} color={colors.textSecondary} />}
-            title="Terms & Privacy"
-            showChevron
-            onPress={() => {}}
-          />
-
-          <ListItem
-            leftIcon={<HelpCircle size={20} color={colors.textSecondary} />}
-            title="Help & Support"
-            showChevron
-            onPress={() => {}}
-            bottomBorder={false}
-          />
-        </View>
-
-        {/* Logout Button */}
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: colors.surface }]}
           onPress={handleLogout}
-          activeOpacity={0.7}>
+          activeOpacity={0.8}>
           <LogOut size={20} color={colors.danger} />
-          <Text style={[styles.logoutText, { color: colors.danger }]}>
-            Log Out
-          </Text>
+          <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out</Text>
         </TouchableOpacity>
-
-        {/* Version */}
-        <Text style={[styles.version, { color: colors.textMuted }]}>
-          Version 1.0.0
-        </Text>
-
-        <View style={{ height: spacing.xlarge }} />
       </ScrollView>
+
+      <ProfileModal
+        colors={colors}
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        title="Edit Profile"
+        subtitle="Keep your owner details current across the app."
+        footer={
+          <Button loading={saving} onPress={handleSaveProfile} fullWidth={false}>
+            Save Changes
+          </Button>
+        }>
+        <Input
+          label="Display Name"
+          value={profileName}
+          onChangeText={setProfileName}
+          placeholder="Ahmed Hassan"
+        />
+        <Text style={[styles.modalSectionLabel, { color: colors.textMuted }]}>LANGUAGE</Text>
+        <View style={styles.languageOptions}>
+          {LANGUAGE_OPTIONS.map((option) => {
+            const selected = profileLanguage === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                activeOpacity={0.85}
+                onPress={() => setProfileLanguage(option.value)}
+                style={[
+                  styles.languageOption,
+                  {
+                    backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
+                    borderColor: selected ? colors.primaryLight : colors.border,
+                  },
+                ]}>
+                <BadgeCheck
+                  size={18}
+                  color={selected ? colors.primary : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.languageOptionText,
+                    { color: selected ? colors.primary : colors.textSecondary },
+                  ]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ProfileModal>
     </View>
+  );
+}
+
+function SummaryMetric({
+  colors,
+  label,
+  value,
+}: {
+  colors: ThemeColors;
+  label: string;
+  value: number;
+}) {
+  return (
+    <View style={[styles.metricCard, { backgroundColor: colors.surfaceSecondary }]}>
+      <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+function ProfileModal({
+  children,
+  colors,
+  footer,
+  onClose,
+  subtitle,
+  title,
+  visible,
+}: {
+  children: React.ReactNode;
+  colors: ThemeColors;
+  footer?: React.ReactNode;
+  onClose: () => void;
+  subtitle: string;
+  title: string;
+  visible: boolean;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalWrapper}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderCopy}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                  {subtitle}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                style={[styles.closeButton, { backgroundColor: colors.surfaceSecondary }]}>
+                <X size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={styles.modalBodyContent}
+              showsVerticalScrollIndicator={false}>
+              {children}
+            </ScrollView>
+            {footer ? <View style={styles.modalFooter}>{footer}</View> : null}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
@@ -223,57 +349,159 @@ const styles = StyleSheet.create({
   },
   userCard: {
     alignItems: 'center',
-    padding: spacing.large,
-    borderRadius: borderRadius['2xl'],
     marginBottom: spacing.section,
-    ...shadows.sm,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.component,
+    marginBottom: spacing.section,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    marginBottom: 4,
   },
-  userPhone: {
+  userEmail: {
     fontSize: 14,
+    marginTop: spacing.default,
   },
-  section: {
-    borderRadius: borderRadius.xl,
+  userMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.default,
+    marginTop: spacing.section,
+  },
+  summaryCard: {
     marginBottom: spacing.section,
-    overflow: 'hidden',
-    ...shadows.sm,
+  },
+  sectionCard: {
+    marginBottom: spacing.section,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 0.8,
     paddingHorizontal: spacing.section,
     paddingTop: spacing.section,
     paddingBottom: spacing.default,
   },
-  logoutButton: {
-    flexDirection: 'row',
+  summaryLoading: {
+    minHeight: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.section,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.component,
+  },
+  metricCard: {
+    width: '48%',
     borderRadius: borderRadius.xl,
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.component,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  metricLabel: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: spacing.default,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: spacing.default,
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing.section,
     ...shadows.sm,
   },
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
   },
-  version: {
-    textAlign: 'center',
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalWrapper: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    maxHeight: '76%',
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.card,
+    paddingTop: spacing.card,
+    paddingBottom: spacing.section,
+    gap: spacing.component,
+  },
+  modalHeaderCopy: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.default,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    flexGrow: 0,
+  },
+  modalBodyContent: {
+    paddingHorizontal: spacing.card,
+    paddingBottom: spacing.section,
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.2)',
+    paddingHorizontal: spacing.card,
+    paddingVertical: spacing.section,
+    alignItems: 'flex-end',
+  },
+  modalSectionLabel: {
     fontSize: 12,
-    marginTop: spacing.section,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: spacing.component,
+  },
+  languageOptions: {
+    gap: spacing.component,
+  },
+  languageOption: {
+    borderWidth: 1,
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.section,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.default,
+  },
+  languageOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

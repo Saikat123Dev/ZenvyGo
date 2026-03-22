@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  StyleProp,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -31,8 +32,8 @@ interface ButtonProps {
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }
 
 export function Button({

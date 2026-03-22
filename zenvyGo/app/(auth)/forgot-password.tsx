@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -47,13 +47,6 @@ export default function ForgotPasswordScreen() {
     }
   }, [countdown, step]);
 
-  // Auto-verify when OTP is complete
-  useEffect(() => {
-    if (otp.length === 6 && newPassword.length >= 8) {
-      handleResetPassword();
-    }
-  }, [otp, newPassword]);
-
   const maskEmail = (email: string) => {
     if (!email) return '***@***.***';
     const [localPart, domain] = email.split('@');
@@ -69,28 +62,34 @@ export default function ForgotPasswordScreen() {
   const validateEmail = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
-      setErrors({ ...errors, email: 'Email is required' });
+      setErrors((current) => ({ ...current, email: 'Email is required' }));
       return false;
     } else if (!emailRegex.test(email)) {
-      setErrors({ ...errors, email: 'Invalid email address' });
+      setErrors((current) => ({ ...current, email: 'Invalid email address' }));
       return false;
     }
     return true;
   };
 
-  const validatePassword = () => {
+  const validatePassword = useCallback(() => {
     if (!newPassword) {
-      setErrors({ ...errors, password: 'Password is required' });
+      setErrors((current) => ({ ...current, password: 'Password is required' }));
       return false;
     } else if (newPassword.length < 8) {
-      setErrors({ ...errors, password: 'Password must be at least 8 characters' });
+      setErrors((current) => ({
+        ...current,
+        password: 'Password must be at least 8 characters',
+      }));
       return false;
     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      setErrors({ ...errors, password: 'Password must contain uppercase, lowercase, and number' });
+      setErrors((current) => ({
+        ...current,
+        password: 'Password must contain uppercase, lowercase, and number',
+      }));
       return false;
     }
     return true;
-  };
+  }, [newPassword]);
 
   const handleSendOTP = async () => {
     if (!validateEmail()) return;
@@ -119,9 +118,9 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = useCallback(async () => {
     if (otp.length !== 6) {
-      setErrors({ ...errors, otp: true });
+      setErrors((current) => ({ ...current, otp: true }));
       return;
     }
 
@@ -149,19 +148,26 @@ export default function ForgotPasswordScreen() {
           ]
         );
       } else {
-        setErrors({ ...errors, otp: true });
+        setErrors((current) => ({ ...current, otp: true }));
         setOtp('');
         Alert.alert('Error', response.error || 'Failed to reset password. Please try again.');
       }
     } catch (err: any) {
       console.error('Password reset error:', err);
-      setErrors({ ...errors, otp: true });
+      setErrors((current) => ({ ...current, otp: true }));
       setOtp('');
       Alert.alert('Error', 'Failed to reset password. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, newPassword, otp, router, validatePassword]);
+
+  // Auto-verify when OTP is complete
+  useEffect(() => {
+    if (otp.length === 6 && newPassword.length >= 8) {
+      handleResetPassword();
+    }
+  }, [handleResetPassword, newPassword.length, otp.length]);
 
   const handleResend = async () => {
     if (!canResend) return;
@@ -281,7 +287,7 @@ export default function ForgotPasswordScreen() {
                 {/* Resend */}
                 <View style={styles.resendContainer}>
                   <Text style={[styles.resendLabel, { color: colors.textMuted }]}>
-                    Didn't receive the code?
+                    Didn&apos;t receive the code?
                   </Text>
                   <TouchableOpacity
                     onPress={handleResend}

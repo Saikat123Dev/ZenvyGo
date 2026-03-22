@@ -5,7 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Platform,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -131,10 +131,6 @@ export function ScreenContainer({
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const Container = scroll
-    ? require('react-native').ScrollView
-    : View;
-
   const containerStyle = [
     styles.screenContainer,
     {
@@ -147,7 +143,7 @@ export function ScreenContainer({
 
   if (scroll) {
     return (
-      <Container
+      <ScrollView
         style={[styles.screenContainer, { backgroundColor: backgroundColor || colors.background }]}
         contentContainerStyle={[
           { paddingHorizontal: padding ? spacing.section : 0 },
@@ -155,7 +151,7 @@ export function ScreenContainer({
         ]}
         showsVerticalScrollIndicator={false}>
         {children}
-      </Container>
+      </ScrollView>
     );
   }
 

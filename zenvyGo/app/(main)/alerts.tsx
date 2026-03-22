@@ -1,164 +1,115 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  ActivityIndicator,
   RefreshControl,
   SectionList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Bell,
-  BellOff,
-  CheckCircle,
-  AlertTriangle,
-  Tag,
-  MapPin,
-  ChevronRight,
-} from 'lucide-react-native';
-import { Colors, spacing, borderRadius } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useFocusEffect } from '@react-navigation/native';
+import { Bell, BellOff, CheckCircle2, CircleAlert, TriangleAlert } from 'lucide-react-native';
 import { AlertCard, EmptyState } from '@/components/ui';
-
-type AlertType = 'scan' | 'resolved' | 'tag';
-
-interface AlertItem {
-  id: string;
-  type: AlertType;
-  title: string;
-  vehicle: string;
-  time: string;
-  isUnread: boolean;
-  location: string | null;
-  reason: string | null;
-}
+import { Colors, borderRadius, spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiService, type AlertItem } from '@/lib/api';
+import { formatDateLabel, formatRelativeTime } from '@/lib/format';
 
 interface AlertSection {
   title: string;
   data: AlertItem[];
 }
 
-// Mock alerts data grouped by date
-const MOCK_ALERTS_DATA: AlertSection[] = [
-  {
-    title: 'Today',
-    data: [
-      {
-        id: '1',
-        type: 'scan',
-        title: 'Someone scanned your QR',
-        vehicle: 'Honda Civic',
-        time: '2 min ago',
-        isUnread: true,
-        location: 'Dubai Mall Parking',
-        reason: null,
-      },
-      {
-        id: '2',
-        type: 'resolved',
-        title: 'Session Resolved',
-        vehicle: 'Toyota Camry',
-        time: '1 hour ago',
-        isUnread: false,
-        location: null,
-        reason: 'Lights On',
-      },
-    ],
-  },
-  {
-    title: 'Yesterday',
-    data: [
-      {
-        id: '3',
-        type: 'tag',
-        title: 'Tag Activated',
-        vehicle: 'Honda Civic',
-        time: '1 day ago',
-        isUnread: false,
-        location: null,
-        reason: null,
-      },
-      {
-        id: '4',
-        type: 'scan',
-        title: 'Someone scanned your QR',
-        vehicle: 'Toyota Camry',
-        time: '1 day ago',
-        isUnread: false,
-        location: 'JBR Parking',
-        reason: 'Blocking',
-      },
-    ],
-  },
-  {
-    title: 'Last Week',
-    data: [
-      {
-        id: '5',
-        type: 'resolved',
-        title: 'Session Resolved',
-        vehicle: 'Honda Civic',
-        time: '5 days ago',
-        isUnread: false,
-        location: null,
-        reason: 'Emergency',
-      },
-    ],
-  },
-];
-
 export default function AlertsScreen() {
-  const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
+  const loadAlerts = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'initial') {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
+    try {
+      const response = await apiService.listAlerts();
+      if (!response.success) {
+        throw new Error(response.error || 'Unable to load alerts');
+      }
+
+      setAlerts(
+        [...(response.data ?? [])].sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        ),
+      );
+    } catch {
+      setAlerts([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const getAlertIcon = (type: AlertType, isUnread: boolean) => {
-    const iconProps = {
-      size: 20,
-      strokeWidth: 2,
-    };
-
-    switch (type) {
-      case 'scan':
-        return (
-          <Bell
-            {...iconProps}
-            color={isUnread ? colors.primary : colors.textMuted}
-          />
-        );
-      case 'resolved':
-        return <CheckCircle {...iconProps} color={colors.success} />;
-      case 'tag':
-        return <Tag {...iconProps} color={colors.textMuted} />;
-      default:
-        return <Bell {...iconProps} color={colors.textMuted} />;
-    }
-  };
-
-  const handleMarkAllRead = () => {
-    // Implement mark all read
-  };
-
-  const totalUnread = MOCK_ALERTS_DATA.reduce(
-    (acc, section) => acc + section.data.filter((a) => a.isUnread).length,
-    0
+  useFocusEffect(
+    useCallback(() => {
+      loadAlerts();
+    }, [loadAlerts]),
   );
 
-  const hasAlerts = MOCK_ALERTS_DATA.some((section) => section.data.length > 0);
+  const unreadAlerts = alerts.filter((alert) => !alert.isRead);
+
+  const sections = alerts.reduce<AlertSection[]>((accumulator, alertItem) => {
+    const title = formatDateLabel(alertItem.createdAt);
+    const existing = accumulator.find((section) => section.title === title);
+
+    if (existing) {
+      existing.data.push(alertItem);
+    } else {
+      accumulator.push({ title, data: [alertItem] });
+    }
+
+    return accumulator;
+  }, []);
+
+  const handleMarkRead = async (alertItem: AlertItem) => {
+    if (alertItem.isRead) {
+      return;
+    }
+
+    const response = await apiService.markAlertRead(alertItem.id);
+    if (!response.success) {
+      return;
+    }
+
+    setAlerts((current) =>
+      current.map((item) =>
+        item.id === alertItem.id ? { ...item, isRead: true } : item,
+      ),
+    );
+  };
+
+  const handleMarkAllRead = async () => {
+    await Promise.allSettled(unreadAlerts.map((alertItem) => apiService.markAlertRead(alertItem.id)));
+    setAlerts((current) => current.map((item) => ({ ...item, isRead: true })));
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View
         style={[
           styles.header,
@@ -168,112 +119,114 @@ export default function AlertsScreen() {
             borderBottomColor: colors.border,
           },
         ]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Alerts</Text>
-        {totalUnread > 0 && (
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Alerts</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Contact requests, tag activity, and system notices.
+          </Text>
+        </View>
+        {unreadAlerts.length > 0 ? (
           <TouchableOpacity onPress={handleMarkAllRead}>
-            <Text style={[styles.markAllText, { color: colors.primary }]}>
-              Mark All Read
-            </Text>
+            <Text style={[styles.markAllText, { color: colors.primary }]}>Mark All Read</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
-      {!hasAlerts ? (
+      {sections.length === 0 ? (
         <EmptyState
-          icon={<BellOff size={64} color={colors.textMuted} strokeWidth={1.5} />}
-          title="No Alerts Yet"
-          description="You'll receive alerts when someone scans your vehicle's QR code."
+          icon={<BellOff size={60} color={colors.textMuted} strokeWidth={1.5} />}
+          title="No alerts yet"
+          description="You will see new activity here after a QR contact request or tag event."
         />
       ) : (
         <SectionList
-          sections={MOCK_ALERTS_DATA}
+          sections={sections}
           keyExtractor={(item) => item.id}
-          renderSectionHeader={({ section: { title } }) => (
-            <View
-              style={[
-                styles.sectionHeader,
-                { backgroundColor: colors.background },
-              ]}>
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={styles.listContent}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-                {title}
+                {section.title}
               </Text>
             </View>
           )}
           renderItem={({ item }) => (
             <AlertCard
-              isUnread={item.isUnread}
-              onPress={() => {}}
-              style={styles.alertItem}>
-              <View style={styles.alertContent}>
+              isUnread={!item.isRead}
+              style={styles.alertCard}
+              onPress={() => handleMarkRead(item)}>
+              <View style={styles.alertRow}>
                 <View
                   style={[
                     styles.alertIcon,
                     {
-                      backgroundColor: item.isUnread
-                        ? colors.primaryLighter
-                        : colors.surfaceSecondary,
+                      backgroundColor: item.isRead
+                        ? colors.surfaceSecondary
+                        : colors.primaryLighter,
                     },
                   ]}>
-                  {getAlertIcon(item.type, item.isUnread)}
+                  {getAlertIcon(item, colors)}
                 </View>
-                <View style={styles.alertText}>
-                  <Text
-                    style={[
-                      styles.alertTitle,
-                      { color: colors.text },
-                      item.isUnread && styles.alertTitleUnread,
-                    ]}>
+                <View style={styles.alertCopy}>
+                  <Text style={[styles.alertTitle, { color: colors.text }]}>
                     {item.title}
                   </Text>
-                  <Text style={[styles.alertSubtitle, { color: colors.textSecondary }]}>
-                    {item.vehicle} • {item.time}
+                  <Text style={[styles.alertTime, { color: colors.textSecondary }]}>
+                    {formatRelativeTime(item.createdAt)}
                   </Text>
-                  {item.location && (
-                    <View style={styles.alertMeta}>
-                      <MapPin size={12} color={colors.textMuted} />
-                      <Text style={[styles.alertMetaText, { color: colors.textMuted }]}>
-                        {item.location}
-                      </Text>
-                    </View>
-                  )}
-                  {item.reason && (
-                    <View style={styles.alertMeta}>
-                      <AlertTriangle size={12} color={colors.textMuted} />
-                      <Text style={[styles.alertMetaText, { color: colors.textMuted }]}>
-                        Reason: {item.reason}
-                      </Text>
-                    </View>
-                  )}
+                  <Text style={[styles.alertBody, { color: colors.textSecondary }]}>
+                    {item.body}
+                  </Text>
                 </View>
-                <ChevronRight size={20} color={colors.textMuted} />
+                {!item.isRead ? (
+                  <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+                ) : null}
               </View>
             </AlertCard>
           )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
+              onRefresh={() => loadAlerts('refresh')}
               tintColor={colors.primary}
             />
           }
-          ListFooterComponent={<View style={{ height: spacing.xlarge }} />}
         />
       )}
     </View>
   );
 }
 
+function getAlertIcon(alertItem: AlertItem, colors: (typeof Colors)['light']) {
+  if (alertItem.severity === 'critical') {
+    return <CircleAlert size={18} color={colors.danger} />;
+  }
+
+  if (alertItem.severity === 'warning') {
+    return <TriangleAlert size={18} color={colors.warning} />;
+  }
+
+  if (alertItem.isRead) {
+    return <CheckCircle2 size={18} color={colors.success} />;
+  }
+
+  return <Bell size={18} color={colors.primary} />;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: spacing.section,
     paddingBottom: spacing.component,
     borderBottomWidth: 1,
@@ -282,59 +235,66 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
+  headerSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   markAllText: {
     fontSize: 14,
     fontWeight: '600',
+    paddingTop: 4,
   },
   listContent: {
     paddingHorizontal: spacing.section,
-    paddingTop: spacing.component,
+    paddingBottom: spacing.screen,
   },
   sectionHeader: {
-    paddingVertical: spacing.component,
-    paddingTop: spacing.section,
+    paddingTop: spacing.large,
+    paddingBottom: spacing.component,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
-  alertItem: {
+  alertCard: {
     marginBottom: spacing.component,
   },
-  alertContent: {
+  alertRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   alertIcon: {
     width: 40,
     height: 40,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.component,
   },
-  alertText: {
+  alertCopy: {
     flex: 1,
   },
   alertTitle: {
     fontSize: 15,
-  },
-  alertTitleUnread: {
     fontWeight: '600',
   },
-  alertSubtitle: {
-    fontSize: 13,
+  alertTime: {
+    fontSize: 12,
     marginTop: 2,
   },
-  alertMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
+  alertBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.default,
   },
-  alertMetaText: {
-    fontSize: 12,
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+    marginLeft: spacing.default,
   },
 });

@@ -11,8 +11,9 @@ export const databaseConfig: PoolOptions = {
   waitForConnections: true,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0,
+  keepAliveInitialDelay: 10000,
   connectTimeout: 10000,
+  idleTimeout: 30000, // Close idle connections after 30s before server drops them
   charset: 'utf8mb4',
   timezone: 'Z',
   namedPlaceholders: false,

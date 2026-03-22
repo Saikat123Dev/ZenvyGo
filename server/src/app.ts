@@ -1,7 +1,6 @@
 import express from 'express';
 import { env } from './shared/config/env';
 import { db } from './shared/database/connection';
-import { redis } from './shared/cache/redis.client';
 import { authModule } from './modules/auth';
 import { usersModule } from './modules/users';
 import { vehiclesModule } from './modules/vehicles';
@@ -32,7 +31,6 @@ const appModules: AppModule[] = [
 
 export async function initializeApplication() {
   await db.connect();
-  await redis.connect();
 
   const app = express();
   app.disable('x-powered-by');

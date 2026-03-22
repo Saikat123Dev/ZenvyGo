@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from 'express';
 import { RATE_LIMITS } from '../config/constants';
-import { redis, REDIS_PREFIXES } from './redis.client';
+import { REDIS_PREFIXES } from './redis.client';
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -22,20 +22,28 @@ function toRateLimitConfig(source: { WINDOW_MS: number; MAX: number }): RateLimi
 }
 
 class RateLimitService {
+  private readonly buckets = new Map<string, { timestamps: number[]; expiresAt: number }>();
+
   public async checkRateLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
     const now = Date.now();
     const windowStart = now - config.windowMs;
     const redisKey = `${REDIS_PREFIXES.RATE_LIMIT}${key}`;
-    const client = redis.getClient();
+    const existing = this.buckets.get(redisKey);
 
-    const pipeline = client.pipeline();
-    pipeline.zremrangebyscore(redisKey, 0, windowStart);
-    pipeline.zcard(redisKey);
-    pipeline.zadd(redisKey, now, `${now}-${Math.random().toString(36).slice(2, 10)}`);
-    pipeline.expire(redisKey, Math.ceil(config.windowMs / 1000));
+    let timestamps = existing?.timestamps ?? [];
+    if (existing && existing.expiresAt <= now) {
+      timestamps = [];
+    }
 
-    const results = await pipeline.exec();
-    const totalHits = Number(results?.[1]?.[1] ?? 0) + 1;
+    timestamps = timestamps.filter((timestamp) => timestamp > windowStart);
+    timestamps.push(now);
+
+    this.buckets.set(redisKey, {
+      timestamps,
+      expiresAt: now + config.windowMs,
+    });
+
+    const totalHits = timestamps.length;
 
     return {
       allowed: totalHits <= config.max,

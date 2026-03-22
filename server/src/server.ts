@@ -1,5 +1,4 @@
 import { env } from './shared/config/env';
-import { redis } from './shared/cache/redis.client';
 import { db } from './shared/database/connection';
 import { log } from './shared/utils/logger';
 import { initializeApplication } from './app';
@@ -18,7 +17,7 @@ async function bootstrap() {
   const shutdown = async (signal: string) => {
     log.info('Shutdown signal received', { signal });
     server.close(async () => {
-      await Promise.allSettled([db.disconnect(), redis.disconnect()]);
+      await Promise.allSettled([db.disconnect()]);
       process.exit(0);
     });
   };

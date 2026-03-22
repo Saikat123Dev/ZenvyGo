@@ -1,140 +1,75 @@
-import Redis from 'ioredis';
-import { redisConfig, REDIS_PREFIXES, REDIS_TTL } from '../config/redis.config';
-import { isDevelopment, env } from '../config/env';
+import { REDIS_PREFIXES, REDIS_TTL } from '../config/redis.config';
+
+type CacheEntry =
+  | { kind: 'value'; value: string; expiresAt?: number }
+  | { kind: 'list'; value: string[]; expiresAt?: number }
+  | { kind: 'set'; value: Set<string>; expiresAt?: number };
 
 /**
- * Redis client singleton
- * Manages Redis connections and provides utility methods
+ * In-memory cache singleton
+ * Replaces Redis with process-local storage
  */
-class RedisClient {
-  private static instance: RedisClient | null = null;
-  private redis: Redis | null = null;
-  private isConnected = false;
+class MemoryCache {
+  private static instance: MemoryCache | null = null;
+  private readonly store = new Map<string, CacheEntry>();
+  private isConnected = true;
 
   private constructor() {}
 
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): RedisClient {
-    if (!RedisClient.instance) {
-      RedisClient.instance = new RedisClient();
+  public static getInstance(): MemoryCache {
+    if (!MemoryCache.instance) {
+      MemoryCache.instance = new MemoryCache();
     }
-    return RedisClient.instance;
+    return MemoryCache.instance;
   }
 
-  /**
-   * Initialize Redis connection
-   */
   public async connect(): Promise<void> {
-    if (this.isConnected && this.redis) {
-      return;
+    this.isConnected = true;
+  }
+
+  private isExpired(entry: CacheEntry): boolean {
+    return typeof entry.expiresAt === 'number' && entry.expiresAt <= Date.now();
+  }
+
+  private getEntry(key: string): CacheEntry | undefined {
+    const entry = this.store.get(key);
+    if (!entry) {
+      return undefined;
     }
+    if (this.isExpired(entry)) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry;
+  }
 
-    try {
-      if (env.REDIS_URL) {
-        this.redis = new Redis(env.REDIS_URL, {
-          maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
-          retryStrategy: redisConfig.retryStrategy,
-          enableReadyCheck: redisConfig.enableReadyCheck,
-          connectTimeout: redisConfig.connectTimeout,
-          lazyConnect: redisConfig.lazyConnect,
-          tls: redisConfig.tls,
-        });
-      } else {
-        this.redis = new Redis(redisConfig);
-      }
-
-      // Set up event handlers before any commands run
-      this.redis.on('connect', () => {
-        if (isDevelopment) {
-          console.log('🔄 Redis connecting...');
-        }
-      });
-
-      this.redis.on('ready', () => {
-        this.isConnected = true;
-        if (isDevelopment) {
-          console.log('✅ Redis ready');
-        }
-      });
-
-      this.redis.on('error', (error) => {
-        console.error('❌ Redis error:', error);
-        this.isConnected = false;
-      });
-
-      this.redis.on('close', () => {
-        this.isConnected = false;
-        if (isDevelopment) {
-          console.log('📴 Redis connection closed');
-        }
-      });
-
-      this.redis.on('reconnecting', (ms: number) => {
-        if (isDevelopment) {
-          console.log(`🔄 Redis reconnecting in ${ms}ms...`);
-        }
-      });
-
-      // Test connection
-      await this.redis.ping();
-      this.isConnected = true;
-
-      if (isDevelopment) {
-        const connectionLabel = env.REDIS_URL ?? `${redisConfig.host}:${redisConfig.port}`;
-        console.log('✅ Redis connection established');
-        console.log(`🔴 Connected to Redis: ${connectionLabel}`);
-      }
-    } catch (error) {
-      console.warn('⚠️ Redis unavailable. Continuing without Redis.', error);
-      if (this.redis) {
-        this.redis.disconnect();
-      }
-      this.redis = null;
-      this.isConnected = false;
+  private applyTtl(entry: CacheEntry, ttl?: number): void {
+    if (ttl && ttl > 0) {
+      entry.expiresAt = Date.now() + ttl * 1000;
+    } else {
+      delete entry.expiresAt;
     }
   }
 
-  /**
-   * Get Redis client instance
-   */
-  public getClient(): Redis {
-    if (!this.redis || !this.isConnected) {
-      throw new Error('Redis not connected. Call connect() first.');
-    }
-    return this.redis;
-  }
-
-  /**
-   * Set key-value with optional TTL
-   */
   public async set(
     key: string,
     value: string | number | boolean | object,
-    ttl?: number
+    ttl?: number,
   ): Promise<void> {
-    const client = this.getClient();
     const serializedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-
-    if (ttl) {
-      await client.setex(key, ttl, serializedValue);
-    } else {
-      await client.set(key, serializedValue);
-    }
+    const entry: CacheEntry = { kind: 'value', value: serializedValue };
+    this.applyTtl(entry, ttl);
+    this.store.set(key, entry);
   }
 
-  /**
-   * Get value by key
-   */
   public async get(key: string): Promise<string | null> {
-    const client = this.getClient();
-    return client.get(key);
+    const entry = this.getEntry(key);
+    if (!entry || entry.kind !== 'value') {
+      return null;
+    }
+    return entry.value;
   }
 
-  /**
-   * Get and parse JSON value
-   */
   public async getObject<T = any>(key: string): Promise<T | null> {
     const value = await this.get(key);
     if (!value) {
@@ -143,198 +78,175 @@ class RedisClient {
 
     try {
       return JSON.parse(value) as T;
-    } catch (error) {
-      console.warn(`Failed to parse JSON for key ${key}:`, error);
+    } catch {
       return null;
     }
   }
 
-  /**
-   * Delete key
-   */
   public async delete(key: string): Promise<number> {
-    const client = this.getClient();
-    return client.del(key);
+    return this.store.delete(key) ? 1 : 0;
   }
 
-  /**
-   * Delete multiple keys
-   */
   public async deleteMany(keys: string[]): Promise<number> {
-    if (keys.length === 0) {
+    let deleted = 0;
+    for (const key of keys) {
+      if (this.store.delete(key)) {
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+
+  public async exists(key: string): Promise<boolean> {
+    return Boolean(this.getEntry(key));
+  }
+
+  public async expire(key: string, ttl: number): Promise<boolean> {
+    const entry = this.getEntry(key);
+    if (!entry) {
+      return false;
+    }
+    this.applyTtl(entry, ttl);
+    this.store.set(key, entry);
+    return true;
+  }
+
+  public async getTTL(key: string): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry) {
+      return -2;
+    }
+    if (typeof entry.expiresAt !== 'number') {
+      return -1;
+    }
+    return Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
+  }
+
+  public async increment(key: string, by = 1): Promise<number> {
+    const currentRaw = await this.get(key);
+    const current = currentRaw ? Number(currentRaw) : 0;
+    const next = current + by;
+    await this.set(key, String(next));
+    return next;
+  }
+
+  public async decrement(key: string, by = 1): Promise<number> {
+    return this.increment(key, -by);
+  }
+
+  public async listPush(key: string, value: string | object): Promise<number> {
+    const serializedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    const entry = this.getEntry(key);
+    let list: string[] = [];
+    if (entry && entry.kind === 'list') {
+      list = entry.value;
+    }
+    list.unshift(serializedValue);
+    const updated: CacheEntry = { kind: 'list', value: list, expiresAt: entry?.expiresAt };
+    this.store.set(key, updated);
+    return list.length;
+  }
+
+  public async listPop(key: string): Promise<string | null> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.kind !== 'list') {
+      return null;
+    }
+    const value = entry.value.pop() ?? null;
+    if (entry.value.length === 0) {
+      this.store.delete(key);
+    } else {
+      this.store.set(key, entry);
+    }
+    return value;
+  }
+
+  public async listLength(key: string): Promise<number> {
+    const entry = this.getEntry(key);
+    if (!entry || entry.kind !== 'list') {
       return 0;
     }
-
-    const client = this.getClient();
-    return client.del(...keys);
+    return entry.value.length;
   }
 
-  /**
-   * Check if key exists
-   */
-  public async exists(key: string): Promise<boolean> {
-    const client = this.getClient();
-    const result = await client.exists(key);
-    return result === 1;
-  }
-
-  /**
-   * Set expiration for existing key
-   */
-  public async expire(key: string, ttl: number): Promise<boolean> {
-    const client = this.getClient();
-    const result = await client.expire(key, ttl);
-    return result === 1;
-  }
-
-  /**
-   * Get TTL for key
-   */
-  public async getTTL(key: string): Promise<number> {
-    const client = this.getClient();
-    return client.ttl(key);
-  }
-
-  /**
-   * Increment counter
-   */
-  public async increment(key: string, by: number = 1): Promise<number> {
-    const client = this.getClient();
-    return client.incrby(key, by);
-  }
-
-  /**
-   * Decrement counter
-   */
-  public async decrement(key: string, by: number = 1): Promise<number> {
-    const client = this.getClient();
-    return client.decrby(key, by);
-  }
-
-  /**
-   * Add item to list (left push)
-   */
-  public async listPush(key: string, value: string | object): Promise<number> {
-    const client = this.getClient();
-    const serializedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    return client.lpush(key, serializedValue);
-  }
-
-  /**
-   * Remove and return item from list (right pop)
-   */
-  public async listPop(key: string): Promise<string | null> {
-    const client = this.getClient();
-    return client.rpop(key);
-  }
-
-  /**
-   * Get list length
-   */
-  public async listLength(key: string): Promise<number> {
-    const client = this.getClient();
-    return client.llen(key);
-  }
-
-  /**
-   * Add member to set
-   */
   public async setAdd(key: string, member: string): Promise<number> {
-    const client = this.getClient();
-    return client.sadd(key, member);
+    const entry = this.getEntry(key);
+    const set = entry && entry.kind === 'set' ? entry.value : new Set<string>();
+    const hadMember = set.has(member);
+    set.add(member);
+    const updated: CacheEntry = { kind: 'set', value: set, expiresAt: entry?.expiresAt };
+    this.store.set(key, updated);
+    return hadMember ? 0 : 1;
   }
 
-  /**
-   * Remove member from set
-   */
   public async setRemove(key: string, member: string): Promise<number> {
-    const client = this.getClient();
-    return client.srem(key, member);
+    const entry = this.getEntry(key);
+    if (!entry || entry.kind !== 'set') {
+      return 0;
+    }
+    const hadMember = entry.value.delete(member);
+    if (entry.value.size === 0) {
+      this.store.delete(key);
+    } else {
+      this.store.set(key, entry);
+    }
+    return hadMember ? 1 : 0;
   }
 
-  /**
-   * Check if member exists in set
-   */
   public async setIsMember(key: string, member: string): Promise<boolean> {
-    const client = this.getClient();
-    const result = await client.sismember(key, member);
-    return result === 1;
+    const entry = this.getEntry(key);
+    return Boolean(entry && entry.kind === 'set' && entry.value.has(member));
   }
 
-  /**
-   * Get all members of set
-   */
   public async setMembers(key: string): Promise<string[]> {
-    const client = this.getClient();
-    return client.smembers(key);
+    const entry = this.getEntry(key);
+    if (!entry || entry.kind !== 'set') {
+      return [];
+    }
+    return Array.from(entry.value);
   }
 
-  /**
-   * Find keys by pattern
-   */
   public async findKeys(pattern: string): Promise<string[]> {
-    const client = this.getClient();
-    return client.keys(pattern);
+    const regex = this.patternToRegex(pattern);
+    return Array.from(this.store.keys()).filter((key) => regex.test(key));
   }
 
-  /**
-   * Clear all keys matching pattern (use with caution!)
-   */
   public async clearPattern(pattern: string): Promise<number> {
     const keys = await this.findKeys(pattern);
-    if (keys.length === 0) {
-      return 0;
-    }
     return this.deleteMany(keys);
   }
 
-  /**
-   * Get Redis info
-   */
   public async getInfo(): Promise<string> {
-    const client = this.getClient();
-    return client.info();
+    return `memory_cache_keys:${this.store.size}`;
   }
 
-  /**
-   * Flush current database (use with caution!)
-   */
   public async flushDatabase(): Promise<string> {
-    const client = this.getClient();
-    return client.flushdb();
+    this.store.clear();
+    return 'OK';
   }
 
-  /**
-   * Close Redis connection
-   */
   public async disconnect(): Promise<void> {
-    if (this.redis && this.isConnected) {
-      await this.redis.quit();
-      this.redis = null;
-      this.isConnected = false;
-      console.log('📴 Redis connection closed');
-    }
+    this.isConnected = false;
+    this.store.clear();
   }
 
-  /**
-   * Get connection status
-   */
   public getStatus(): {
     isConnected: boolean;
     status?: string;
   } {
     return {
       isConnected: this.isConnected,
-      status: this.redis?.status || 'disconnected',
+      status: this.isConnected ? 'ready' : 'disconnected',
     };
+  }
+
+  private patternToRegex(pattern: string): RegExp {
+    const escaped = pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&');
+    const regexString = `^${escaped.replace(/\*/g, '.*')}$`;
+    return new RegExp(regexString);
   }
 }
 
-// Export singleton instance
-export const redis = RedisClient.getInstance();
+export const redis = MemoryCache.getInstance();
 
-// Export Redis prefixes and TTL constants for convenience
 export { REDIS_PREFIXES, REDIS_TTL };
-
-// Export ioredis types
-export type { Redis } from 'ioredis';

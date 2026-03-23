@@ -9,6 +9,7 @@ import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { OtaUpdateController } from '@/components/updates/OtaUpdateController';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { ThemeProvider as AppThemeProvider } from '@/providers/ThemeProvider';
 
@@ -100,6 +101,7 @@ function RootNavigator() {
 
   return (
     <NavigationThemeProvider value={colorScheme === 'dark' ? ZenvyGoDarkTheme : ZenvyGoLightTheme}>
+      <OtaUpdateController />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(main)" options={{ headerShown: false }} />

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  Image,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,7 @@ import {
   Twitter,
 } from 'lucide-react-native';
 import { Badge, Card } from '@/components/ui';
+import { APP_ENV } from '@/constants/config';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -37,6 +39,11 @@ export default function AboutScreen() {
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? '1';
+  const otaChannel = Updates.channel ?? (__DEV__ ? 'Not assigned in development' : 'Not assigned');
+  const otaRuntimeVersion = Updates.runtimeVersion ?? 'Unavailable';
+  const otaLaunchSource = Updates.isEmbeddedLaunch ? 'Embedded bundle' : 'Downloaded update';
+  const otaUpdateId = Updates.updateId ? `${Updates.updateId.slice(0, 8)}...` : 'Embedded build';
+  const otaStatus = Updates.isEnabled ? 'Enabled' : 'Disabled';
 
   const handleOpenLink = (url: string) => {
     Linking.openURL(url);
@@ -91,6 +98,16 @@ export default function AboutScreen() {
             <Badge variant="primary">Version {appVersion}</Badge>
             <Badge variant="info">Build {buildNumber}</Badge>
           </View>
+        </Card>
+
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>RELEASE</Text>
+        <Card style={styles.releaseCard} padding="none">
+          <ReleaseInfoRow colors={colors} label="Environment" value={APP_ENV} />
+          <ReleaseInfoRow colors={colors} label="OTA updates" value={otaStatus} />
+          <ReleaseInfoRow colors={colors} label="Channel" value={otaChannel} />
+          <ReleaseInfoRow colors={colors} label="Runtime version" value={otaRuntimeVersion} />
+          <ReleaseInfoRow colors={colors} label="Launch source" value={otaLaunchSource} />
+          <ReleaseInfoRow colors={colors} label="Update ID" value={otaUpdateId} isLast monospace />
         </Card>
 
         {/* Description */}
@@ -204,6 +221,34 @@ export default function AboutScreen() {
   );
 }
 
+function ReleaseInfoRow({
+  colors,
+  isLast = false,
+  label,
+  monospace = false,
+  value,
+}: {
+  colors: typeof Colors.light;
+  isLast?: boolean;
+  label: string;
+  monospace?: boolean;
+  value: string;
+}) {
+  return (
+    <View style={[styles.releaseRow, !isLast && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+      <Text style={[styles.releaseLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text
+        style={[
+          styles.releaseValue,
+          { color: colors.text },
+          monospace && styles.releaseValueMono,
+        ]}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function FeatureItem({
   icon: Icon,
   text,
@@ -298,6 +343,35 @@ const styles = StyleSheet.create({
   versionRow: {
     flexDirection: 'row',
     gap: spacing.default,
+  },
+  releaseCard: {
+    marginTop: spacing.section,
+    overflow: 'hidden',
+  },
+  releaseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.component,
+    paddingHorizontal: spacing.section,
+  },
+  releaseLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  releaseValue: {
+    flex: 1,
+    marginLeft: spacing.component,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  releaseValueMono: {
+    fontFamily: Platform.select({
+      ios: 'Menlo',
+      android: 'monospace',
+      default: 'monospace',
+    }),
   },
   descriptionCard: {
     marginTop: spacing.section,

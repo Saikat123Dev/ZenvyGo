@@ -14,11 +14,13 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Updates from 'expo-updates';
 import {
   Bell,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Download,
   FileText,
   Info,
   Lock,
@@ -48,6 +50,7 @@ export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
   const themeLabel =
     themePreference === 'system'
@@ -70,6 +73,39 @@ export default function SettingsScreen() {
     { value: 'light', label: 'Light', description: 'Bright and clean interface', icon: Sun },
     { value: 'dark', label: 'Dark', description: 'Easy on the eyes at night', icon: Moon },
   ];
+
+  const handleCheckForUpdates = async () => {
+    try {
+      setIsCheckingUpdate(true);
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        Alert.alert(
+          'Update Available',
+          'A new version is ready to be downloaded. Would you like to update now?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Download & Restart',
+              onPress: async () => {
+                try {
+                  await Updates.fetchUpdateAsync();
+                  await Updates.reloadAsync();
+                } catch (e: any) {
+                  Alert.alert('Update Error', e.message || 'Failed to apply the update.');
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Up to Date', 'You are already running the latest version.');
+      }
+    } catch (error: any) {
+      Alert.alert('Update Error', error.message || 'Failed to check for updates. You might be in development mode.');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -289,6 +325,27 @@ export default function SettingsScreen() {
               <Text style={[styles.settingsTitle, { color: colors.text }]}>About ZenvyGo</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
                 App version and info
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+        </Card>
+
+        {/* App Updates Section */}
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APP UPDATES</Text>
+        <Card style={styles.sectionCard} padding="none">
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleCheckForUpdates}
+            disabled={isCheckingUpdate}
+            style={styles.settingsRowLast}>
+            <View style={[styles.settingsIcon, { backgroundColor: colors.infoBackground }]}>
+              <Download size={20} color={colors.info} />
+            </View>
+            <View style={styles.settingsCopy}>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>Check for Updates</Text>
+              <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
+                {isCheckingUpdate ? 'Checking for updates...' : 'Download and install OTA updates'}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />

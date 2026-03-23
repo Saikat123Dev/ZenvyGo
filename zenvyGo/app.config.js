@@ -3,6 +3,8 @@ const { expo } = require('./app.json');
 module.exports = () => {
   const appEnv =
     process.env.APP_ENV || process.env.EXPO_PUBLIC_APP_ENV || 'development';
+  const apiUrl =
+    process.env.EXPO_PUBLIC_API_URL || expo.extra?.apiUrl;
   const easProjectId =
     process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
     process.env.EAS_PROJECT_ID ||
@@ -11,6 +13,7 @@ module.exports = () => {
   const extra = {
     ...(expo.extra ?? {}),
     appEnv,
+    ...(apiUrl ? { apiUrl } : {}),
     eas: {
       ...(expo.extra?.eas ?? {}),
       ...(easProjectId ? { projectId: easProjectId } : {}),
@@ -19,6 +22,7 @@ module.exports = () => {
 
   const updates = {
     ...(expo.updates ?? {}),
+    checkAutomatically: 'ON_LOAD',
     fallbackToCacheTimeout: 0,
     ...(easProjectId
       ? {

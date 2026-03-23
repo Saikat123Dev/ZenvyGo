@@ -1,4 +1,0 @@
-
-> vehicle-contact-server@1.0.0 migrate:up /home/saikat/workspce/internship/vehical-assistant/server
-> ts-node scripts/run-migrations.ts up
-

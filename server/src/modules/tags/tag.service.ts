@@ -1,6 +1,8 @@
 import QRCode from 'qrcode';
 import { TAG } from '../../shared/config/constants';
 import { env } from '../../shared/config/env';
+import { cacheService } from '../../shared/cache/cache.service';
+import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { NotFoundError } from '../../shared/utils/api-error';
 import { generateToken, generateUUID } from '../../shared/utils/crypto';
 import { vehicleService } from '../vehicles/vehicle.service';
@@ -32,8 +34,19 @@ class TagService {
   private readonly repository = new TagRepository();
 
   public async listByOwner(ownerId: string): Promise<TagSummary[]> {
+    // Cache the entire list for this owner
+    const cacheKey = `tag:list:${ownerId}`;
+    const cached = await cacheService.get<TagSummary[]>('CACHE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const records = await this.repository.findByOwner(ownerId);
-    return records.map((record) => this.toSummary(record));
+    const tags = records.map((record) => this.toSummary(record));
+
+    // Cache for 5 minutes
+    await cacheService.set('CACHE', cacheKey, tags, REDIS_TTL.CACHE_SHORT);
+    return tags;
   }
 
   public async create(ownerId: string, input: {
@@ -55,6 +68,9 @@ class TagService {
       qrCodeUrl,
     });
 
+    // Invalidate cache
+    await this.invalidateOwnerCache(ownerId);
+
     const created = await this.repository.findByIdForOwner(tagId, ownerId);
     if (!created) {
       throw new Error('Failed to create tag');
@@ -71,6 +87,10 @@ class TagService {
 
     await this.repository.activate(tagId);
 
+    // Invalidate cache
+    await this.invalidateOwnerCache(ownerId);
+    await cacheService.delete('CACHE', `tag:token:${existing.token}`);
+
     const updated = await this.repository.findByIdForOwner(tagId, ownerId);
     if (!updated) {
       throw new Error('Failed to reload tag after activation');
@@ -80,12 +100,30 @@ class TagService {
   }
 
   public async resolveToken(token: string): Promise<ResolvedTag> {
+    // Cache resolved tags for 15 minutes (they don't change often)
+    const cacheKey = `tag:token:${token}`;
+    const cached = await cacheService.get<ResolvedTag>('CACHE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const tag = await this.repository.findByToken(token);
     if (!tag) {
       throw new NotFoundError('Tag not found');
     }
 
-    return this.toResolvedTag(tag);
+    const resolved = this.toResolvedTag(tag);
+
+    // Cache for 15 minutes
+    await cacheService.set('CACHE', cacheKey, resolved, REDIS_TTL.CACHE_MEDIUM);
+    return resolved;
+  }
+
+  /**
+   * Invalidate all cache entries for an owner
+   */
+  private async invalidateOwnerCache(ownerId: string): Promise<void> {
+    await cacheService.delete('CACHE', `tag:list:${ownerId}`);
   }
 
   private toSummary(record: TagRecord): TagSummary {

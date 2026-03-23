@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,14 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import {
   Bell,
   Car,
@@ -19,13 +27,16 @@ import {
   CircleAlert,
   MessageSquareWarning,
   QrCode,
+  Settings,
   ShieldCheck,
+  Sparkles,
   Tag,
+  TrendingUp,
 } from 'lucide-react-native';
 import { Badge, Button, Card, EmptyState, SectionHeader } from '@/components/ui';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { apiService, type AlertItem, type ContactSession, type TagSummary, type Vehicle } from '@/lib/api';
+import { apiService } from '@/lib/api';
 import {
   formatChannel,
   formatReasonCode,
@@ -34,13 +45,13 @@ import {
   getGreeting,
 } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
-
-interface DashboardData {
-  vehicles: Vehicle[];
-  tags: TagSummary[];
-  alerts: AlertItem[];
-  sessions: ContactSession[];
-}
+import {
+  useActiveVehicles,
+  useActiveTags,
+  useAppStore,
+  useOpenSessions,
+  useUnreadAlerts,
+} from '@/store/app-store';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -49,86 +60,54 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<DashboardData>({
-    vehicles: [],
-    tags: [],
-    alerts: [],
-    sessions: [],
-  });
+  // Global store with selectors
+  const { vehicles, alerts, sessions, isLoading, isRefreshing, error, fetchAll, updateSession } =
+    useAppStore();
+  const activeVehicles = useActiveVehicles();
+  const activeTags = useActiveTags();
+  const unreadAlerts = useUnreadAlerts();
+  const openSessions = useOpenSessions();
 
-  const loadDashboard = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (mode === 'initial') {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
-    try {
-      const [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse] =
-        await Promise.all([
-          apiService.listVehicles(),
-          apiService.listTags(),
-          apiService.listAlerts(),
-          apiService.listContactSessions(),
-        ]);
-
-      const failure =
-        [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse].find(
-          (response) => !response.success,
-        ) ?? null;
-
-      if (failure) {
-        throw new Error(failure.error || 'Failed to load dashboard');
-      }
-
-      setDashboard({
-        vehicles: [...(vehiclesResponse.data ?? [])].sort((left, right) =>
-          right.createdAt.localeCompare(left.createdAt),
-        ),
-        tags: [...(tagsResponse.data ?? [])].sort((left, right) =>
-          right.createdAt.localeCompare(left.createdAt),
-        ),
-        alerts: [...(alertsResponse.data ?? [])].sort((left, right) =>
-          right.createdAt.localeCompare(left.createdAt),
-        ),
-        sessions: [...(sessionsResponse.data ?? [])].sort((left, right) =>
-          right.createdAt.localeCompare(left.createdAt),
-        ),
-      });
-      setError(null);
-    } catch (loadError: any) {
-      setError(loadError.message || 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
+  // Load data on focus (with caching)
   useFocusEffect(
     useCallback(() => {
-      loadDashboard();
-    }, [loadDashboard]),
+      fetchAll('silent');
+    }, [fetchAll]),
   );
 
-  const unreadAlerts = dashboard.alerts.filter((alert) => !alert.isRead);
-  const activeVehicles = dashboard.vehicles.filter((vehicle) => vehicle.status === 'active');
-  const activeTags = dashboard.tags.filter((tag) => tag.state === 'activated');
-  const openSessions = dashboard.sessions.filter((session) => session.status === 'initiated');
-
-  const handleResolveSession = async (sessionId: string) => {
+  const handleResolveSession = useCallback(async (sessionId: string) => {
     const response = await apiService.resolveContactSession(sessionId);
-    if (!response.success) {
+    if (!response.success || !response.data) {
       Alert.alert('Unable to resolve request', response.error || 'Please try again.');
       return;
     }
 
-    loadDashboard('refresh');
-  };
+    updateSession(response.data);
+  }, [updateSession]);
 
-  if (loading) {
+  // Memoized session list items
+  const sessionListItems = useMemo(() => {
+    return openSessions.slice(0, 3).map((session) => {
+      const vehicle = vehicles.find((item) => item.id === session.vehicleId);
+      const requesterName =
+        typeof session.requesterContext?.requesterName === 'string'
+          ? session.requesterContext.requesterName
+          : null;
+
+      return {
+        session,
+        vehicle,
+        requesterName,
+      };
+    });
+  }, [openSessions, vehicles]);
+
+  // Memoized alert list items
+  const alertListItems = useMemo(() => {
+    return alerts.slice(0, 4);
+  }, [alerts]);
+
+  if (isLoading && vehicles.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -146,77 +125,122 @@ export default function HomeScreen() {
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadDashboard('refresh')}
+            refreshing={isRefreshing}
+            onRefresh={() => fetchAll('refresh')}
             tintColor={colors.primary}
           />
         }>
+        {/* Header with notifications and settings */}
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text style={[styles.greeting, { color: colors.text }]}>
               {getGreeting(user?.name)}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Track vehicles, tags, and incoming contact requests in one place.
+              Your ZenvyGo command center
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push('/(main)/alerts')}
-            style={[styles.notificationButton, { backgroundColor: colors.surface }]}>
-            <Bell size={22} color={colors.text} strokeWidth={2} />
-            {unreadAlerts.length > 0 ? (
-              <View style={[styles.notificationBadge, { backgroundColor: colors.danger }]}>
-                <Text style={styles.notificationCount}>
-                  {Math.min(unreadAlerts.length, 9)}
-                </Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/(main)/settings' as any)}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}>
+              <Settings size={20} color={colors.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/(main)/alerts')}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}>
+              <Bell size={20} color={colors.text} strokeWidth={2} />
+              {unreadAlerts.length > 0 ? (
+                <View style={[styles.notificationBadge, { backgroundColor: colors.danger }]}>
+                  <Text style={styles.notificationCount}>
+                    {Math.min(unreadAlerts.length, 9)}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <Card
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: colors.primary,
-              borderColor: colors.primary,
-            },
-          ]}>
-          <View style={styles.heroHeader}>
-            <View style={[styles.heroIcon, { backgroundColor: 'rgba(255, 255, 255, 0.16)' }]}>
-              <ShieldCheck size={24} color="#FFFFFF" />
+        {/* Gradient Hero Card */}
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <LinearGradient
+            colors={colorScheme === 'dark'
+              ? ['#1E3A8A', '#0F172A']
+              : ['#1E3A8A', '#3B82F6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}>
+            <View style={styles.heroContent}>
+              <View style={styles.heroHeader}>
+                <View style={styles.heroIconContainer}>
+                  <ShieldCheck size={28} color="#FFFFFF" strokeWidth={1.5} />
+                </View>
+                <View style={styles.heroBadge}>
+                  <Sparkles size={12} color="#FBBF24" />
+                  <Text style={styles.heroBadgeText}>Active</Text>
+                </View>
+              </View>
+              <Text style={styles.heroTitle}>Welcome to ZenvyGo</Text>
+              <Text style={styles.heroDescription}>
+                Your vehicles are protected. QR tags handle contact requests while keeping your number private.
+              </Text>
+              <View style={styles.heroStats}>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{activeVehicles.length}</Text>
+                  <Text style={styles.heroStatLabel}>Vehicles</Text>
+                </View>
+                <View style={styles.heroStatDivider} />
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{activeTags.length}</Text>
+                  <Text style={styles.heroStatLabel}>Active Tags</Text>
+                </View>
+                <View style={styles.heroStatDivider} />
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{openSessions.length}</Text>
+                  <Text style={styles.heroStatLabel}>Requests</Text>
+                </View>
+              </View>
             </View>
-            <Badge variant="info">Owner Workspace</Badge>
-          </View>
-          <Text style={styles.heroTitle}>Your ZenvyGo account is active</Text>
-          <Text style={styles.heroDescription}>
-            QR tags stay privacy-safe while alerts and requests are logged against your vehicles.
-          </Text>
-        </Card>
+            <View style={styles.heroPattern}>
+              <View style={[styles.patternCircle, styles.patternCircle1]} />
+              <View style={[styles.patternCircle, styles.patternCircle2]} />
+            </View>
+          </LinearGradient>
+        </Animated.View>
 
-        <View style={styles.statsRow}>
-          <StatCard
+        {/* Quick Stats Cards */}
+        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statsRow}>
+          <AnimatedStatCard
             icon={<Car size={22} color={colors.primary} />}
             label="Vehicles"
             value={String(activeVehicles.length)}
+            trend={activeVehicles.length > 0 ? '+' : ''}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/vehicles')}
+            delay={0}
           />
-          <StatCard
+          <AnimatedStatCard
             icon={<Tag size={22} color={colors.success} />}
-            label="Active tags"
+            label="Active Tags"
             value={String(activeTags.length)}
+            trend={activeTags.length > 0 ? '+' : ''}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/vehicles')}
+            delay={100}
           />
-          <StatCard
+          <AnimatedStatCard
             icon={<MessageSquareWarning size={22} color={colors.warning} />}
-            label="Open requests"
+            label="Requests"
             value={String(openSessions.length)}
+            trend={openSessions.length > 0 ? '!' : ''}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/alerts')}
+            delay={200}
           />
-        </View>
+        </Animated.View>
 
         {error ? (
           <Card style={styles.errorCard}>
@@ -230,7 +254,7 @@ export default function HomeScreen() {
         <SectionHeader
           title="Open Requests"
           actionLabel={openSessions.length > 0 ? 'Refresh' : undefined}
-          onActionPress={() => loadDashboard('refresh')}
+          onActionPress={() => fetchAll('refresh')}
         />
         {openSessions.length === 0 ? (
           <EmptyState
@@ -239,62 +263,54 @@ export default function HomeScreen() {
             description="When someone contacts you through a QR tag, the request will appear here."
           />
         ) : (
-          openSessions.slice(0, 3).map((session) => {
-            const vehicle = dashboard.vehicles.find((item) => item.id === session.vehicleId);
-            const requesterName =
-              typeof session.requesterContext?.requesterName === 'string'
-                ? session.requesterContext.requesterName
-                : null;
-
-            return (
-              <Card key={session.id} style={styles.listCard}>
-                <View style={styles.listCardHeader}>
-                  <View style={styles.listCardCopy}>
-                    <Text style={[styles.listTitle, { color: colors.text }]}>
-                      {formatReasonCode(session.reasonCode)}
-                    </Text>
-                    <Text style={[styles.listSubtitle, { color: colors.textSecondary }]}>
-                      {vehicle ? formatVehicleName(vehicle) : 'Vehicle request'} •{' '}
-                      {formatRelativeTime(session.createdAt)}
-                    </Text>
-                  </View>
-                  <Badge variant="warning">{formatChannel(session.requestedChannel)}</Badge>
+          sessionListItems.map(({ session, vehicle, requesterName }) => (
+            <Card key={session.id} style={styles.listCard}>
+              <View style={styles.listCardHeader}>
+                <View style={styles.listCardCopy}>
+                  <Text style={[styles.listTitle, { color: colors.text }]}>
+                    {formatReasonCode(session.reasonCode)}
+                  </Text>
+                  <Text style={[styles.listSubtitle, { color: colors.textSecondary }]}>
+                    {vehicle ? formatVehicleName(vehicle) : 'Vehicle request'} •{' '}
+                    {formatRelativeTime(session.createdAt)}
+                  </Text>
                 </View>
-                {requesterName ? (
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                    Requested by {requesterName}
-                  </Text>
-                ) : null}
-                {session.message ? (
-                  <Text style={[styles.messageText, { color: colors.textSecondary }]}>
-                    {session.message}
-                  </Text>
-                ) : null}
-                <Button
-                  variant="secondary"
-                  fullWidth={false}
-                  style={styles.inlineButton}
-                  onPress={() => handleResolveSession(session.id)}>
-                  Mark Resolved
-                </Button>
-              </Card>
-            );
-          })
+                <Badge variant="warning">{formatChannel(session.requestedChannel)}</Badge>
+              </View>
+              {requesterName ? (
+                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                  Requested by {requesterName}
+                </Text>
+              ) : null}
+              {session.message ? (
+                <Text style={[styles.messageText, { color: colors.textSecondary }]}>
+                  {session.message}
+                </Text>
+              ) : null}
+              <Button
+                variant="secondary"
+                fullWidth={false}
+                style={styles.inlineButton}
+                onPress={() => handleResolveSession(session.id)}>
+                Mark Resolved
+              </Button>
+            </Card>
+          ))
         )}
 
         <SectionHeader
           title="Recent Alerts"
-          actionLabel={dashboard.alerts.length > 0 ? 'View All' : undefined}
+          actionLabel={alerts.length > 0 ? 'View All' : undefined}
           onActionPress={() => router.push('/(main)/alerts')}
         />
-        {dashboard.alerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <EmptyState
             icon={<Bell size={44} color={colors.textMuted} strokeWidth={1.5} />}
             title="No alerts yet"
             description="Alerts will appear when a tag is used or when a contact request is created."
           />
         ) : (
-          dashboard.alerts.slice(0, 4).map((alertItem) => (
+          alertListItems.map((alertItem) => (
             <TouchableOpacity
               key={alertItem.id}
               activeOpacity={0.8}
@@ -322,78 +338,151 @@ export default function HomeScreen() {
         )}
 
         <SectionHeader title="Quick Actions" />
-        <View style={styles.actionsRow}>
+        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actionsRow}>
           <QuickAction
-            label="Vehicles"
-            icon={<Car size={22} color={colors.primary} />}
+            label="Manage Vehicles"
+            description="Add, edit, generate QR"
+            icon={<Car size={24} color={colors.primary} />}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/vehicles')}
           />
           <QuickAction
-            label="Scan QR"
-            icon={<QrCode size={22} color={colors.info} />}
+            label="Scan QR Code"
+            description="Contact a vehicle owner"
+            icon={<QrCode size={24} color={colors.info} />}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/scan')}
           />
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.actionsRow}>
           <QuickAction
-            label="Alerts"
-            icon={<Bell size={22} color={colors.warning} />}
+            label="View Alerts"
+            description={`${unreadAlerts.length} unread`}
+            icon={<Bell size={24} color={colors.warning} />}
             colors={colors}
+            colorScheme={colorScheme}
             onPress={() => router.push('/(main)/alerts')}
           />
-        </View>
+          <QuickAction
+            label="Settings"
+            description="Preferences & help"
+            icon={<Settings size={24} color={colors.textSecondary} />}
+            colors={colors}
+            colorScheme={colorScheme}
+            onPress={() => router.push('/(main)/settings' as any)}
+          />
+        </Animated.View>
       </ScrollView>
     </View>
   );
 }
 
-function StatCard({
+const AnimatedStatCard = React.memo(function AnimatedStatCard({
   icon,
   label,
   value,
+  trend,
   colors,
+  colorScheme,
   onPress,
+  delay,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  trend?: string;
   colors: (typeof Colors)['light'];
+  colorScheme: string | null;
   onPress: () => void;
+  delay: number;
 }) {
-  return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.statCardTouchable} onPress={onPress}>
-      <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
-        <View style={[styles.statIcon, { backgroundColor: colors.surfaceSecondary }]}>{icon}</View>
-        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
-      </Card>
-    </TouchableOpacity>
-  );
-}
+  const scale = useSharedValue(1);
 
-function QuickAction({
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View entering={FadeInRight.delay(delay).springify()} style={styles.statCardTouchable}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={onPress}
+        onPressIn={() => { scale.value = withSpring(0.95); }}
+        onPressOut={() => { scale.value = withSpring(1); }}>
+        <Animated.View
+          style={[
+            styles.statCard,
+            { backgroundColor: colors.surface },
+            animatedStyle,
+          ]}>
+          <View style={[styles.statIcon, { backgroundColor: colors.surfaceSecondary }]}>
+            {icon}
+          </View>
+          <View style={styles.statValueRow}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+            {trend && (
+              <View style={[styles.trendBadge, { backgroundColor: colors.successBackground }]}>
+                <TrendingUp size={10} color={colors.success} />
+              </View>
+            )}
+          </View>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+});
+
+const QuickAction = React.memo(function QuickAction({
   label,
+  description,
   icon,
   colors,
+  colorScheme,
   onPress,
 }: {
   label: string;
+  description: string;
   icon: React.ReactNode;
   colors: (typeof Colors)['light'];
+  colorScheme: string | null;
   onPress: () => void;
 }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       onPress={onPress}
-      style={[styles.quickAction, { backgroundColor: colors.surface }]}>
-      <View style={[styles.quickActionIcon, { backgroundColor: colors.surfaceSecondary }]}>
-        {icon}
-      </View>
-      <Text style={[styles.quickActionLabel, { color: colors.text }]}>{label}</Text>
+      onPressIn={() => { scale.value = withSpring(0.97); }}
+      onPressOut={() => { scale.value = withSpring(1); }}
+      style={styles.quickActionTouchable}>
+      <Animated.View
+        style={[
+          styles.quickAction,
+          { backgroundColor: colors.surface },
+          animatedStyle,
+        ]}>
+        <View style={[styles.quickActionIcon, { backgroundColor: colors.surfaceSecondary }]}>
+          {icon}
+        </View>
+        <View style={styles.quickActionCopy}>
+          <Text style={[styles.quickActionLabel, { color: colors.text }]}>{label}</Text>
+          <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
+            {description}
+          </Text>
+        </View>
+        <ChevronRight size={18} color={colors.textMuted} />
+      </Animated.View>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -421,15 +510,19 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: spacing.default,
+    marginBottom: spacing.tight,
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
   },
-  notificationButton: {
-    width: 46,
-    height: 46,
+  headerActions: {
+    flexDirection: 'row',
+    gap: spacing.default,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -437,8 +530,8 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 7,
-    right: 7,
+    top: 6,
+    right: 6,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -452,7 +545,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   heroCard: {
+    borderRadius: borderRadius['2xl'],
+    overflow: 'hidden',
     marginBottom: spacing.large,
+    position: 'relative',
+  },
+  heroContent: {
+    padding: spacing.card,
+    zIndex: 2,
   },
   heroHeader: {
     flexDirection: 'row',
@@ -460,23 +560,90 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.section,
   },
-  heroIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.lg,
+  heroIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.xl,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: spacing.component,
+    paddingVertical: spacing.tight,
+    borderRadius: borderRadius.full,
+  },
+  heroBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   heroTitle: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     marginBottom: spacing.default,
   },
   heroDescription: {
-    color: 'rgba(255, 255, 255, 0.88)',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 15,
     lineHeight: 22,
+    marginBottom: spacing.large,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.component,
+  },
+  heroStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  heroStatValue: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  heroStatLabel: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  heroStatDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: spacing.tight,
+  },
+  heroPattern: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '50%',
+    zIndex: 1,
+  },
+  patternCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  patternCircle1: {
+    top: -30,
+    right: -30,
+    width: 150,
+    height: 150,
+  },
+  patternCircle2: {
+    bottom: -40,
+    right: 40,
+    width: 100,
+    height: 100,
   },
   statsRow: {
     flexDirection: 'row',
@@ -487,8 +654,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statCard: {
-    alignItems: 'center',
-    minHeight: 136,
+    borderRadius: borderRadius.xl,
+    padding: spacing.section,
+    minHeight: 120,
+    ...shadows.sm,
   },
   statIcon: {
     width: 44,
@@ -498,14 +667,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.component,
   },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.default,
+  },
   statValue: {
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: 4,
+  },
+  trendBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statLabel: {
     fontSize: 13,
-    textAlign: 'center',
+    marginTop: 4,
   },
   errorCard: {
     marginBottom: spacing.default,
@@ -555,26 +735,35 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     gap: spacing.component,
-    marginTop: spacing.default,
+    marginBottom: spacing.component,
+  },
+  quickActionTouchable: {
+    flex: 1,
   },
   quickAction: {
-    flex: 1,
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing.large,
-    paddingHorizontal: spacing.component,
+    flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: borderRadius.xl,
+    padding: spacing.section,
+    gap: spacing.component,
     ...shadows.sm,
   },
   quickActionIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.component,
+  },
+  quickActionCopy: {
+    flex: 1,
   },
   quickActionLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
+  },
+  quickActionDescription: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });

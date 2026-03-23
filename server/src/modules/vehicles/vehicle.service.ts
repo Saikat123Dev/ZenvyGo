@@ -1,5 +1,6 @@
 import { VEHICLE } from '../../shared/config/constants';
 import { cacheService } from '../../shared/cache/cache.service';
+import { REDIS_TTL } from '../../shared/cache/redis.client';
 import {
   BadRequestError,
   NotFoundError,
@@ -25,8 +26,19 @@ class VehicleService {
   private readonly repository = new VehicleRepository();
 
   public async listByOwner(ownerId: string): Promise<Vehicle[]> {
+    // Cache the entire list for this owner
+    const cacheKey = `list:${ownerId}`;
+    const cached = await cacheService.get<Vehicle[]>('VEHICLE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const records = await this.repository.findByOwner(ownerId);
-    return records.map((record) => this.toVehicle(record));
+    const vehicles = records.map((record) => this.toVehicle(record));
+
+    // Cache for 5 minutes (balances freshness with performance)
+    await cacheService.set('VEHICLE', cacheKey, vehicles, REDIS_TTL.CACHE_SHORT);
+    return vehicles;
   }
 
   public async getOwnedVehicle(ownerId: string, vehicleId: string): Promise<Vehicle> {
@@ -66,6 +78,9 @@ class VehicleService {
       ...input,
     });
 
+    // Invalidate list cache
+    await this.invalidateOwnerCache(ownerId);
+
     return this.getOwnedVehicle(ownerId, vehicleId);
   }
 
@@ -84,14 +99,28 @@ class VehicleService {
   ): Promise<Vehicle> {
     await this.getOwnedVehicle(ownerId, vehicleId);
     await this.repository.update(vehicleId, ownerId, input);
+
+    // Clear both individual and list cache
     await cacheService.clearVehicleCache(`${ownerId}:${vehicleId}`);
+    await this.invalidateOwnerCache(ownerId);
+
     return this.getOwnedVehicle(ownerId, vehicleId);
   }
 
   public async archive(ownerId: string, vehicleId: string): Promise<void> {
     await this.getOwnedVehicle(ownerId, vehicleId);
     await this.repository.softDelete(vehicleId, ownerId);
+
+    // Clear both individual and list cache
     await cacheService.clearVehicleCache(`${ownerId}:${vehicleId}`);
+    await this.invalidateOwnerCache(ownerId);
+  }
+
+  /**
+   * Invalidate all cache entries for an owner
+   */
+  private async invalidateOwnerCache(ownerId: string): Promise<void> {
+    await cacheService.delete('VEHICLE', `list:${ownerId}`);
   }
 
   private toVehicle(record: VehicleRecord): Vehicle {

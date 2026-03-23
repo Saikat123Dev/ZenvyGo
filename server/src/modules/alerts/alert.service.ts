@@ -1,3 +1,5 @@
+import { cacheService } from '../../shared/cache/cache.service';
+import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { NotFoundError } from '../../shared/utils/api-error';
 import { generateUUID } from '../../shared/utils/crypto';
 import { AlertRepository, type AlertRecord } from './alert.repository';
@@ -37,11 +39,25 @@ class AlertService {
       channel: 'system',
       metadata: input.metadata ?? null,
     });
+
+    // Invalidate user's alert cache
+    await this.invalidateUserCache(input.userId);
   }
 
   public async listByUser(userId: string): Promise<Alert[]> {
+    // Cache alerts list for this user
+    const cacheKey = `alerts:list:${userId}`;
+    const cached = await cacheService.get<Alert[]>('CACHE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const records = await this.repository.listByUser(userId);
-    return records.map((record) => this.toAlert(record));
+    const alerts = records.map((record) => this.toAlert(record));
+
+    // Cache for 2 minutes (alerts should be relatively fresh)
+    await cacheService.set('CACHE', cacheKey, alerts, 120);
+    return alerts;
   }
 
   public async markRead(userId: string, alertId: string): Promise<Alert> {
@@ -51,12 +67,23 @@ class AlertService {
     }
 
     await this.repository.markRead(alertId, userId);
+
+    // Invalidate cache
+    await this.invalidateUserCache(userId);
+
     const updated = await this.repository.findByIdForUser(alertId, userId);
     if (!updated) {
       throw new Error('Failed to load alert');
     }
 
     return this.toAlert(updated);
+  }
+
+  /**
+   * Invalidate all cache entries for a user
+   */
+  private async invalidateUserCache(userId: string): Promise<void> {
+    await cacheService.delete('CACHE', `alerts:list:${userId}`);
   }
 
   private toAlert(record: AlertRecord): Alert {

@@ -1,4 +1,6 @@
 import { SESSION } from '../../shared/config/constants';
+import { cacheService } from '../../shared/cache/cache.service';
+import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { eventBus } from '../../shared/events/event-bus';
 import { generateUUID } from '../../shared/utils/crypto';
 import { NotFoundError, RateLimitError } from '../../shared/utils/api-error';
@@ -75,12 +77,26 @@ class ContactService {
       }),
     );
 
+    // Invalidate cache for the owner
+    await this.invalidateOwnerCache(session.owner_id);
+
     return this.toSession(session);
   }
 
   public async listByOwner(ownerId: string): Promise<ContactSession[]> {
+    // Cache sessions list for this owner
+    const cacheKey = `sessions:list:${ownerId}`;
+    const cached = await cacheService.get<ContactSession[]>('CACHE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const sessions = await this.repository.findByOwner(ownerId);
-    return sessions.map((session) => this.toSession(session));
+    const result = sessions.map((session) => this.toSession(session));
+
+    // Cache for 2 minutes (sessions should be relatively fresh)
+    await cacheService.set('CACHE', cacheKey, result, 120);
+    return result;
   }
 
   public async resolve(ownerId: string, sessionId: string): Promise<ContactSession> {
@@ -91,12 +107,22 @@ class ContactService {
 
     await this.repository.resolve(sessionId, ownerId);
 
+    // Invalidate cache
+    await this.invalidateOwnerCache(ownerId);
+
     const resolved = await this.repository.findByIdForOwner(sessionId, ownerId);
     if (!resolved) {
       throw new Error('Failed to load resolved contact session');
     }
 
     return this.toSession(resolved);
+  }
+
+  /**
+   * Invalidate all cache entries for an owner
+   */
+  private async invalidateOwnerCache(ownerId: string): Promise<void> {
+    await cacheService.delete('CACHE', `sessions:list:${ownerId}`);
   }
 
   private toSession(record: ContactSessionRecord): ContactSession {

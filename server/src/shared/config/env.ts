@@ -16,7 +16,7 @@ const envSchema = z.object({
   DB_NAME: z.string().min(1, 'Database name is required'),
   DB_USER: z.string().min(1, 'Database user is required'),
   DB_PASSWORD: z.string().default(''),
-  DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
+  DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(20),
 
 
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),

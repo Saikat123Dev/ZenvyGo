@@ -21,27 +21,22 @@ export default function MainTabsLayout() {
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: colors.tabBackground,
-          borderTopColor: colors.tabBorder,
-          borderTopWidth: 1,
           height: componentHeights.tabBar + insets.bottom,
           paddingBottom: insets.bottom,
-          paddingTop: spacing.default,
+          paddingTop: spacing.tight,
           ...Platform.select({
             ios: {
-              ...shadows.sm,
+              ...shadows.default,
             },
             android: {
-              elevation: 8,
+              elevation: 4,
             },
           }),
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
+          fontSize: 12,
+          fontWeight: '600',
           marginTop: 2,
-        },
-        tabBarIconStyle: {
-          marginBottom: -4,
         },
       }}>
       <Tabs.Screen
@@ -99,6 +94,37 @@ export default function MainTabsLayout() {
           ),
         }}
       />
+      {/* Hidden screens - accessible via navigation but not shown in tab bar */}
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="help"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="privacy-policy"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="terms"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
@@ -109,17 +135,9 @@ interface TabIconProps {
 }
 
 function TabIcon({ children, focused }: TabIconProps) {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
   return (
     <View style={styles.tabIconContainer}>
       {children}
-      {focused && (
-        <View
-          style={[styles.activeIndicator, { backgroundColor: colors.tabIconSelected }]}
-        />
-      )}
     </View>
   );
 }
@@ -128,12 +146,5 @@ const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: -8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
   },
 });

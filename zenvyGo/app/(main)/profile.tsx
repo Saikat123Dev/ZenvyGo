@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,54 +11,64 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   BadgeCheck,
-  Globe,
+  Bell,
+  Car,
+  ChevronRight,
+  CircleHelp,
+  Info,
   LogOut,
-  Mail,
+  MessageSquareText,
   Monitor,
   Moon,
   PencilLine,
+  Settings,
   Shield,
   Sun,
+  Tag,
   User,
   X,
 } from 'lucide-react-native';
-import { Badge, Button, Card, Input, ListItem } from '@/components/ui';
-import { Colors, ThemeColors, borderRadius, shadows, spacing } from '@/constants/theme';
+import { Badge, Button, Card, Input } from '@/components/ui';
+import { Colors, ThemeColors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService } from '@/lib/api';
 import { LANGUAGE_OPTIONS } from '@/lib/domain';
 import { formatLanguage, maskEmail } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
-
-interface ActivitySummary {
-  vehicles: number;
-  tags: number;
-  unreadAlerts: number;
-  openRequests: number;
-}
+import { useAppStore, useOpenSessions, useUnreadAlerts } from '@/store/app-store';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const { user, finishAuthentication, signOut } = useAuth();
   const { themePreference, setThemePreference } = useThemePreference();
 
-  const [loading, setLoading] = useState(true);
+  // Global store
+  const { vehicles, tags, isLoading, fetchAll } = useAppStore();
+  const unreadAlerts = useUnreadAlerts();
+  const openSessions = useOpenSessions();
+
+  // Memoized activity summary from global store
+  const activitySummary = useMemo(() => ({
+    vehicles: vehicles.length,
+    tags: tags.length,
+    unreadAlerts: unreadAlerts.length,
+    openRequests: openSessions.length,
+  }), [vehicles.length, tags.length, unreadAlerts.length, openSessions.length]);
+
   const [saving, setSaving] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
-  const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
-    vehicles: 0,
-    tags: 0,
-    unreadAlerts: 0,
-    openRequests: 0,
-  });
   const [profileName, setProfileName] = useState(user?.name ?? '');
   const [profileLanguage, setProfileLanguage] = useState<'en' | 'ar'>(
     user?.language === 'ar' ? 'ar' : 'en',
@@ -97,51 +107,13 @@ export default function ProfileScreen() {
     },
   ];
 
-  const loadProfileSummary = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse] = await Promise.all([
-        apiService.listVehicles(),
-        apiService.listTags(),
-        apiService.listAlerts(),
-        apiService.listContactSessions(),
-      ]);
-
-      const failure =
-        [vehiclesResponse, tagsResponse, alertsResponse, sessionsResponse].find(
-          (response) => !response.success,
-        ) ?? null;
-
-      if (failure) {
-        throw new Error(failure.error || 'Unable to load profile');
-      }
-
-      setActivitySummary({
-        vehicles: vehiclesResponse.data?.length ?? 0,
-        tags: tagsResponse.data?.length ?? 0,
-        unreadAlerts: alertsResponse.data?.filter((item) => !item.isRead).length ?? 0,
-        openRequests:
-          sessionsResponse.data?.filter((item) => item.status === 'initiated').length ?? 0,
-      });
-    } catch {
-      setActivitySummary({
-        vehicles: 0,
-        tags: 0,
-        unreadAlerts: 0,
-        openRequests: 0,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Load data on focus (with caching)
   useFocusEffect(
     useCallback(() => {
       setProfileName(user?.name ?? '');
       setProfileLanguage(user?.language === 'ar' ? 'ar' : 'en');
-      loadProfileSummary();
-    }, [loadProfileSummary, user?.language, user?.name]),
+      fetchAll('silent');
+    }, [fetchAll, user?.language, user?.name]),
   );
 
   const handleSaveProfile = async () => {
@@ -180,84 +152,200 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + spacing.section, paddingBottom: spacing.screen },
+          { paddingBottom: insets.bottom + spacing.large },
         ]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
-
-        <Card style={styles.userCard}>
-          <View style={[styles.avatar, { backgroundColor: colors.primaryLighter }]}>
-            <User size={38} color={colors.primary} strokeWidth={1.5} />
-          </View>
-          <Text style={[styles.userName, { color: colors.text }]}>
-            {user?.name || 'Account owner'}
-          </Text>
-          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-            {maskEmail(user?.email)}
-          </Text>
-          <View style={styles.userMetaRow}>
-            <Badge variant="success">Verified</Badge>
-            <Badge variant="primary">{formatLanguage(user?.language || 'en')}</Badge>
-            <Badge variant="info">{user?.country || 'US'}</Badge>
-          </View>
-        </Card>
-
-        <Card style={styles.summaryCard}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACTIVITY</Text>
-          {loading ? (
-            <View style={styles.summaryLoading}>
-              <ActivityIndicator size="small" color={colors.primary} />
+        {/* Gradient Header with User Info */}
+        <LinearGradient
+          colors={colorScheme === 'dark'
+            ? ['#1E3A8A', '#0F172A']
+            : ['#1E3A8A', '#3B82F6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.profileHeader, { paddingTop: insets.top + spacing.section }]}>
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileContent}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <User size={40} color="#1E3A8A" strokeWidth={1.5} />
+              </View>
+              <View style={styles.verifiedBadge}>
+                <BadgeCheck size={18} color="#FFFFFF" fill="#0D9488" />
+              </View>
             </View>
-          ) : (
-            <View style={styles.summaryGrid}>
-              <SummaryMetric label="Vehicles" value={activitySummary.vehicles} colors={colors} />
-              <SummaryMetric label="Tags" value={activitySummary.tags} colors={colors} />
-              <SummaryMetric label="Unread Alerts" value={activitySummary.unreadAlerts} colors={colors} />
-              <SummaryMetric label="Open Requests" value={activitySummary.openRequests} colors={colors} />
+            <Text style={styles.profileName}>{user?.name || 'Account Owner'}</Text>
+            <Text style={styles.profileEmail}>{maskEmail(user?.email)}</Text>
+            <View style={styles.profileBadges}>
+              <View style={styles.profileBadge}>
+                <Text style={styles.profileBadgeText}>
+                  {formatLanguage(user?.language || 'en')}
+                </Text>
+              </View>
+              <View style={styles.profileBadge}>
+                <Text style={styles.profileBadgeText}>{user?.country || 'UAE'}</Text>
+              </View>
             </View>
-          )}
-        </Card>
+          </Animated.View>
+          <View style={styles.headerPattern}>
+            <View style={[styles.patternCircle, styles.patternCircle1]} />
+            <View style={[styles.patternCircle, styles.patternCircle2]} />
+          </View>
+        </LinearGradient>
 
-        <Card style={styles.sectionCard}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACCOUNT</Text>
-          <ListItem
-            leftIcon={<PencilLine size={20} color={colors.textSecondary} />}
-            title="Edit Profile"
-            subtitle="Update your display name and preferred language"
-            showChevron
-            onPress={() => setEditModalVisible(true)}
-          />
-          <ListItem
-            leftIcon={<Sun size={20} color={colors.textSecondary} />}
-            title="Appearance"
-            subtitle={`${themeLabel} mode`}
-            showChevron
-            onPress={() => setThemeModalVisible(true)}
-          />
-          <ListItem
-            leftIcon={<Mail size={20} color={colors.textSecondary} />}
-            title="Email"
-            subtitle={user?.email || 'No email saved'}
-          />
-          <ListItem
-            leftIcon={<Globe size={20} color={colors.textSecondary} />}
-            title="Language"
-            subtitle={formatLanguage(user?.language || 'en')}
-          />
-          <ListItem
-            leftIcon={<Shield size={20} color={colors.textSecondary} />}
-            title="Privacy"
-            subtitle="QR contacts are routed through the platform without exposing your real number."
-            bottomBorder={false}
-          />
-        </Card>
+        {/* Activity Stats */}
+        <Animated.View entering={FadeInDown.delay(200).springify()}>
+          <Card style={styles.statsCard}>
+            <Text style={[styles.cardTitle, { color: colors.textMuted }]}>YOUR ACTIVITY</Text>
+            {isLoading && vehicles.length === 0 ? (
+              <View style={styles.statsLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.statsGrid}>
+                <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
+                  <Car size={20} color={colors.primary} />
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {activitySummary.vehicles}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Vehicles</Text>
+                </View>
+                <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
+                  <Tag size={20} color={colors.success} />
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {activitySummary.tags}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tags</Text>
+                </View>
+                <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
+                  <Bell size={20} color={colors.warning} />
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {activitySummary.unreadAlerts}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Unread</Text>
+                </View>
+                <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
+                  <MessageSquareText size={20} color={colors.info} />
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {activitySummary.openRequests}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Requests</Text>
+                </View>
+              </View>
+            )}
+          </Card>
+        </Animated.View>
 
-        <TouchableOpacity
-          style={[styles.logoutButton, { backgroundColor: colors.surface }]}
-          onPress={handleLogout}
-          activeOpacity={0.8}>
-          <LogOut size={20} color={colors.danger} />
-          <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out</Text>
-        </TouchableOpacity>
+        {/* Account Section */}
+        <Animated.View entering={FadeInDown.delay(300).springify()}>
+          <Card style={styles.menuCard} padding="none">
+            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>ACCOUNT</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setEditModalVisible(true)}
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.primaryLighter }]}>
+                <PencilLine size={18} color={colors.primary} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>Edit Profile</Text>
+                <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
+                  Name and language preference
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setThemeModalVisible(true)}
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.warningBackground }]}>
+                {themePreference === 'light' ? (
+                  <Sun size={18} color={colors.warning} />
+                ) : themePreference === 'dark' ? (
+                  <Moon size={18} color={colors.warning} />
+                ) : (
+                  <Monitor size={18} color={colors.warning} />
+                )}
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>Appearance</Text>
+                <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
+                  {themeLabel} theme selected
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push('/(main)/settings' as any)}
+              style={styles.menuItemLast}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.infoBackground }]}>
+                <Settings size={18} color={colors.info} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>Settings</Text>
+                <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
+                  Notifications, privacy, security
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </Card>
+        </Animated.View>
+
+        {/* Support Section */}
+        <Animated.View entering={FadeInDown.delay(400).springify()}>
+          <Card style={styles.menuCard} padding="none">
+            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>SUPPORT</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push('/(main)/help' as any)}
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.successBackground }]}>
+                <CircleHelp size={18} color={colors.success} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>Help & FAQ</Text>
+                <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
+                  Common questions answered
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push('/(main)/about' as any)}
+              style={styles.menuItemLast}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.surfaceSecondary }]}>
+                <Info size={18} color={colors.textSecondary} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>About ZenvyGo</Text>
+                <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
+                  Version and app info
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </Card>
+        </Animated.View>
+
+        {/* Logout Button */}
+        <Animated.View entering={FadeInDown.delay(500).springify()}>
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: colors.dangerBackground }]}
+            onPress={handleLogout}
+            activeOpacity={0.8}>
+            <LogOut size={20} color={colors.danger} />
+            <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Privacy Note */}
+        <View style={styles.privacyNote}>
+          <Shield size={14} color={colors.textMuted} />
+          <Text style={[styles.privacyText, { color: colors.textMuted }]}>
+            Your data is encrypted and never shared with third parties
+          </Text>
+        </View>
       </ScrollView>
 
       <ProfileModal
@@ -367,23 +455,6 @@ export default function ProfileScreen() {
   );
 }
 
-function SummaryMetric({
-  colors,
-  label,
-  value,
-}: {
-  colors: ThemeColors;
-  label: string;
-  value: number;
-}) {
-  return (
-    <View style={[styles.metricCard, { backgroundColor: colors.surfaceSecondary }]}>
-      <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
-    </View>
-  );
-}
-
 function ProfileModal({
   children,
   colors,
@@ -440,79 +511,171 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+  },
+  profileHeader: {
+    paddingBottom: spacing.large,
     paddingHorizontal: spacing.section,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: spacing.large,
-  },
-  userCard: {
+  profileContent: {
     alignItems: 'center',
+    zIndex: 2,
+  },
+  avatarContainer: {
+    position: 'relative',
     marginBottom: spacing.section,
   },
   avatar: {
     width: 88,
     height: 88,
     borderRadius: 44,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: spacing.tight,
+  },
+  profileEmail: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 15,
     marginBottom: spacing.section,
   },
-  userName: {
+  profileBadges: {
+    flexDirection: 'row',
+    gap: spacing.default,
+  },
+  profileBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: spacing.component,
+    paddingVertical: spacing.tight,
+    borderRadius: borderRadius.full,
+  },
+  profileBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  headerPattern: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '60%',
+    zIndex: 1,
+  },
+  patternCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  patternCircle1: {
+    top: -40,
+    right: -40,
+    width: 180,
+    height: 180,
+  },
+  patternCircle2: {
+    bottom: -30,
+    right: 60,
+    width: 120,
+    height: 120,
+  },
+  statsCard: {
+    marginHorizontal: spacing.section,
+    marginTop: -spacing.large,
+  },
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: spacing.section,
+  },
+  statsLoading: {
+    minHeight: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: spacing.component,
+  },
+  statItem: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    padding: spacing.component,
+    alignItems: 'center',
+  },
+  statValue: {
     fontSize: 22,
     fontWeight: '700',
-  },
-  userEmail: {
-    fontSize: 14,
     marginTop: spacing.default,
   },
-  userMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.default,
+  statLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  menuCard: {
+    marginHorizontal: spacing.section,
     marginTop: spacing.section,
+    overflow: 'hidden',
   },
-  summaryCard: {
-    marginBottom: spacing.section,
-  },
-  sectionCard: {
-    marginBottom: spacing.section,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  sectionTitle: {
+  menuTitle: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.8,
     paddingHorizontal: spacing.section,
     paddingTop: spacing.section,
-    paddingBottom: spacing.default,
+    paddingBottom: spacing.component,
   },
-  summaryLoading: {
-    minHeight: 80,
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.section,
+    borderBottomWidth: 1,
+  },
+  menuItemLast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.section,
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.component,
   },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.component,
+  menuCopy: {
+    flex: 1,
   },
-  metricCard: {
-    width: '48%',
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing.section,
-    paddingHorizontal: spacing.component,
+  menuLabel: {
+    fontSize: 16,
+    fontWeight: '500',
   },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  metricLabel: {
+  menuHint: {
     fontSize: 13,
-    lineHeight: 18,
-    marginTop: spacing.default,
+    marginTop: 2,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -521,11 +684,24 @@ const styles = StyleSheet.create({
     gap: spacing.default,
     borderRadius: borderRadius.xl,
     paddingVertical: spacing.section,
-    ...shadows.sm,
+    marginHorizontal: spacing.section,
+    marginTop: spacing.section,
   },
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  privacyNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.default,
+    paddingVertical: spacing.large,
+    paddingHorizontal: spacing.section,
+  },
+  privacyText: {
+    fontSize: 12,
+    textAlign: 'center',
   },
   modalBackdrop: {
     flex: 1,

@@ -240,6 +240,59 @@ class MemoryCache {
     };
   }
 
+  /**
+   * Clean up all expired entries
+   * Returns the number of entries cleaned
+   */
+  public cleanupExpired(): number {
+    let cleanedCount = 0;
+    const now = Date.now();
+
+    for (const [key, entry] of this.store.entries()) {
+      if (typeof entry.expiresAt === 'number' && entry.expiresAt <= now) {
+        this.store.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
+  }
+
+  /**
+   * Get cache statistics
+   */
+  public getStats(): {
+    totalKeys: number;
+    memoryUsageBytes: number;
+  } {
+    let totalBytes = 0;
+
+    for (const [key, entry] of this.store.entries()) {
+      // Estimate memory usage (rough calculation)
+      totalBytes += key.length * 2; // UTF-16 encoding
+
+      if (entry.kind === 'value') {
+        totalBytes += entry.value.length * 2;
+      } else if (entry.kind === 'list') {
+        for (const item of entry.value) {
+          totalBytes += item.length * 2;
+        }
+      } else if (entry.kind === 'set') {
+        for (const item of entry.value) {
+          totalBytes += item.length * 2;
+        }
+      }
+
+      // Add overhead for entry metadata
+      totalBytes += 100; // Rough estimate for object overhead
+    }
+
+    return {
+      totalKeys: this.store.size,
+      memoryUsageBytes: totalBytes,
+    };
+  }
+
   private patternToRegex(pattern: string): RegExp {
     const escaped = pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&');
     const regexString = `^${escaped.replace(/\*/g, '.*')}$`;

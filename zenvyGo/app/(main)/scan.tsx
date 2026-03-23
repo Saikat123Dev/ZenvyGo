@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Flashlight, QrCode, ScanLine, ShieldCheck } from 'lucide-react-native';
 import { Badge, Button, Input } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
@@ -17,6 +18,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type ContactSession, type ResolvedTag } from '@/lib/api';
 import { CONTACT_CHANNEL_OPTIONS, CONTACT_REASON_OPTIONS } from '@/lib/domain';
 import { extractTagToken, formatChannel, formatReasonCode } from '@/lib/format';
+
+// Debounce interval to prevent rapid duplicate scans
+const SCAN_DEBOUNCE_MS = 1500;
+// Cooldown after a failed scan attempt
+const SCAN_COOLDOWN_MS = 2000;
 
 export default function ScanScreen() {
   const colorScheme = useColorScheme();
@@ -37,7 +43,12 @@ export default function ScanScreen() {
   const [requesterName, setRequesterName] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleResolve = async (rawValue: string) => {
+  // Refs for debouncing - using refs to avoid state update delays
+  const lastScannedTokenRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+  const isProcessingRef = useRef(false);
+
+  const handleResolve = useCallback(async (rawValue: string) => {
     const token = extractTagToken(rawValue);
     if (!token) {
       setError('Scan a ZenvyGo QR code or paste the QR token/URL.');
@@ -48,56 +59,88 @@ export default function ScanScreen() {
     setError(null);
     setCreatedSession(null);
 
-    const response = await apiService.resolveTag(token);
-    setResolving(false);
+    try {
+      const response = await apiService.resolveTag(token);
 
-    if (!response.success || !response.data) {
-      setResolvedTag(null);
-      setActiveToken(null);
-      setError(response.error || 'This QR tag could not be resolved.');
-      return;
+      if (!response.success || !response.data) {
+        setResolvedTag(null);
+        setActiveToken(null);
+        setError(response.error || 'This QR tag could not be resolved.');
+        return;
+      }
+
+      setResolvedTag(response.data);
+      setActiveToken(token);
+      setSelectedReason(response.data.allowedReasonCodes[0] ?? CONTACT_REASON_OPTIONS[0].value);
+      setSelectedChannel(response.data.allowedChannels[0] ?? CONTACT_CHANNEL_OPTIONS[0].value);
+    } finally {
+      setResolving(false);
     }
+  }, []);
 
-    setResolvedTag(response.data);
-    setActiveToken(token);
-    setSelectedReason(response.data.allowedReasonCodes[0] ?? CONTACT_REASON_OPTIONS[0].value);
-    setSelectedChannel(response.data.allowedChannels[0] ?? CONTACT_CHANNEL_OPTIONS[0].value);
-  };
+  const handleBarcodeScanned = useCallback(
+    ({ data }: { data: string }) => {
+      const now = Date.now();
+      const token = extractTagToken(data);
 
-  const handleBarcodeScanned = async ({ data }: { data: string }) => {
-    if (resolving || resolvedTag || createdSession) {
-      return;
-    }
+      // Quick ref-based checks to prevent unnecessary processing
+      if (isProcessingRef.current) return;
+      if (resolvedTag || createdSession) return;
 
-    await handleResolve(data);
-  };
+      // Debounce: skip if same token scanned recently
+      if (token && token === lastScannedTokenRef.current) {
+        if (now - lastScanTimeRef.current < SCAN_DEBOUNCE_MS) {
+          return;
+        }
+      }
 
-  const handleSubmitRequest = async () => {
+      // Cooldown: skip if any scan happened too recently
+      if (now - lastScanTimeRef.current < SCAN_COOLDOWN_MS && lastScannedTokenRef.current) {
+        return;
+      }
+
+      // Update refs immediately (synchronous, no state delay)
+      lastScannedTokenRef.current = token;
+      lastScanTimeRef.current = now;
+      isProcessingRef.current = true;
+
+      // Process the scan
+      handleResolve(data).finally(() => {
+        isProcessingRef.current = false;
+      });
+    },
+    [handleResolve, resolvedTag, createdSession],
+  );
+
+  const handleSubmitRequest = useCallback(async () => {
     if (!activeToken || !resolvedTag) {
       return;
     }
 
     setSubmitting(true);
-    const response = await apiService.createPublicContactSession({
-      token: activeToken,
-      reasonCode: selectedReason,
-      requestedChannel: selectedChannel,
-      requesterName: requesterName.trim() || null,
-      message: message.trim() || null,
-    });
-    setSubmitting(false);
+    try {
+      const response = await apiService.createPublicContactSession({
+        token: activeToken,
+        reasonCode: selectedReason,
+        requestedChannel: selectedChannel,
+        requesterName: requesterName.trim() || null,
+        message: message.trim() || null,
+      });
 
-    if (!response.success || !response.data) {
-      Alert.alert('Unable to send request', response.error || 'Please try again.');
-      return;
+      if (!response.success || !response.data) {
+        Alert.alert('Unable to send request', response.error || 'Please try again.');
+        return;
+      }
+
+      setCreatedSession(response.data);
+      setRequesterName('');
+      setMessage('');
+    } finally {
+      setSubmitting(false);
     }
+  }, [activeToken, resolvedTag, selectedReason, selectedChannel, requesterName, message]);
 
-    setCreatedSession(response.data);
-    setRequesterName('');
-    setMessage('');
-  };
-
-  const resetFlow = () => {
+  const resetFlow = useCallback(() => {
     setError(null);
     setResolvedTag(null);
     setCreatedSession(null);
@@ -107,9 +150,14 @@ export default function ScanScreen() {
     setSelectedChannel(CONTACT_CHANNEL_OPTIONS[0].value);
     setRequesterName('');
     setMessage('');
-  };
+    // Reset debounce refs
+    lastScannedTokenRef.current = null;
+    lastScanTimeRef.current = 0;
+    isProcessingRef.current = false;
+  }, []);
 
   const hasCameraPermission = permission?.granted ?? false;
+  const shouldShowCamera = hasCameraPermission && !resolvedTag && !createdSession;
 
   return (
     <View style={[styles.container, { backgroundColor: '#03111F' }]}>
@@ -133,7 +181,7 @@ export default function ScanScreen() {
       <View style={styles.cameraSection}>
         {permission === null ? (
           <ActivityIndicator size="large" color="#FFFFFF" />
-        ) : hasCameraPermission ? (
+        ) : shouldShowCamera ? (
           <View style={styles.cameraFrame}>
             <CameraView
               style={StyleSheet.absoluteFillObject}
@@ -152,8 +200,22 @@ export default function ScanScreen() {
                   <ScanLine size={220} color="rgba(96, 165, 250, 0.9)" />
                 </View>
               </View>
+              {resolving && (
+                <View style={styles.scanningIndicator}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.scanningText}>Resolving...</Text>
+                </View>
+              )}
             </View>
           </View>
+        ) : hasCameraPermission ? (
+          // Camera hidden when tag resolved or session created
+          <Animated.View entering={FadeIn.duration(300)} style={styles.resolvedPlaceholder}>
+            <ShieldCheck size={54} color="rgba(255,255,255,0.3)" strokeWidth={1.5} />
+            <Text style={styles.resolvedPlaceholderText}>
+              {createdSession ? 'Request submitted' : 'Tag resolved'}
+            </Text>
+          </Animated.View>
         ) : (
           <View style={styles.permissionCard}>
             <QrCode size={54} color="#FFFFFF" strokeWidth={1.5} />
@@ -171,9 +233,10 @@ export default function ScanScreen() {
       <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + spacing.large }]}>
           {createdSession ? (
-            <View>
+            <Animated.View entering={FadeInDown.duration(300)}>
               <View style={styles.successIcon}>
                 <ShieldCheck size={28} color={colors.success} />
               </View>
@@ -186,9 +249,9 @@ export default function ScanScreen() {
                 <Badge variant="primary">{formatChannel(createdSession.requestedChannel)}</Badge>
               </View>
               <Button onPress={resetFlow}>Scan Another Code</Button>
-            </View>
+            </Animated.View>
           ) : resolvedTag ? (
-            <View>
+            <Animated.View entering={FadeInDown.duration(300)}>
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
                 Contact owner of {resolvedTag.plateNumber}
               </Text>
@@ -277,7 +340,7 @@ export default function ScanScreen() {
                   Send Request
                 </Button>
               </View>
-            </View>
+            </Animated.View>
           ) : (
             <View>
               <Text style={[styles.sheetTitle, { color: colors.text }]}>Ready to scan</Text>
@@ -398,6 +461,36 @@ const styles = StyleSheet.create({
     right: 10,
     top: '45%',
     alignItems: 'center',
+  },
+  scanningIndicator: {
+    position: 'absolute',
+    bottom: 40,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: spacing.section,
+    paddingVertical: spacing.component,
+    borderRadius: borderRadius.full,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.default,
+  },
+  scanningText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  resolvedPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B1B30',
+    borderRadius: borderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  resolvedPlaceholderText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    marginTop: spacing.section,
   },
   permissionCard: {
     alignItems: 'center',

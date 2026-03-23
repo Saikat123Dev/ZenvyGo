@@ -78,6 +78,11 @@ class AlertService {
     return this.toAlert(updated);
   }
 
+  public async markAllRead(userId: string): Promise<void> {
+    await this.repository.markAllRead(userId);
+    await this.invalidateUserCache(userId);
+  }
+
   /**
    * Invalidate all cache entries for a user
    */

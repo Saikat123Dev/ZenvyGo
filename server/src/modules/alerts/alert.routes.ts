@@ -21,6 +21,15 @@ router.get(
 );
 
 router.patch(
+  '/alerts/read-all',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    await alertService.markAllRead(req.user!.id);
+    return successResponse(res, null, 'All alerts marked as read');
+  }),
+);
+
+router.patch(
   '/alerts/:alertId/read',
   authenticate,
   validateParams(alertIdParamsSchema),

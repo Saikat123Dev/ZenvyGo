@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import {
   apiService,
   type AlertItem,
@@ -36,6 +37,7 @@ interface AppState {
   addTag: (tag: TagSummary) => void;
   updateTag: (tag: TagSummary) => void;
   markAlertRead: (alertId: string) => void;
+  markAllAlertsRead: () => void;
   addSession: (session: ContactSession) => void;
   updateSession: (session: ContactSession) => void;
 
@@ -208,6 +210,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     })),
 
+  markAllAlertsRead: () =>
+    set((state) => ({
+      alerts: state.alerts.map((a) => ({ ...a, isRead: true })),
+    })),
+
   addSession: (session) =>
     set((state) => ({
       sessions: sortByCreatedAt([session, ...state.sessions]),
@@ -221,16 +228,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
 // Selectors for derived state
 export const useActiveVehicles = () =>
-  useAppStore((state) => state.vehicles.filter((v) => v.status === 'active'));
+  useAppStore(useShallow((state) => state.vehicles.filter((v) => v.status === 'active')));
 
 export const useActiveTags = () =>
-  useAppStore((state) => state.tags.filter((t) => t.state === 'activated'));
+  useAppStore(useShallow((state) => state.tags.filter((t) => t.state === 'activated')));
 
 export const useUnreadAlerts = () =>
-  useAppStore((state) => state.alerts.filter((a) => !a.isRead));
+  useAppStore(useShallow((state) => state.alerts.filter((a) => !a.isRead)));
 
 export const useOpenSessions = () =>
-  useAppStore((state) => state.sessions.filter((s) => s.status === 'initiated'));
+  useAppStore(useShallow((state) => state.sessions.filter((s) => s.status === 'initiated')));
 
 export const useVehicleTags = (vehicleId: string) =>
-  useAppStore((state) => state.tags.filter((t) => t.vehicleId === vehicleId));
+  useAppStore(useShallow((state) => state.tags.filter((t) => t.vehicleId === vehicleId)));

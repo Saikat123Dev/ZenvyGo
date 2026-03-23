@@ -7,7 +7,7 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_created_at ON vehicles(created_at DESC);
 -- Tags table indexes
 CREATE INDEX IF NOT EXISTS idx_tags_vehicle_id ON tags(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_tags_token ON tags(token);
-CREATE INDEX IF NOT EXISTS idx_tags_owner_state ON tags(owner_id, state);
+CREATE INDEX IF NOT EXISTS idx_tags_state ON tags(state);
 CREATE INDEX IF NOT EXISTS idx_tags_created_at ON tags(created_at DESC);
 
 -- Contact sessions indexes
@@ -29,5 +29,5 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 
 -- PII vault indexes
-CREATE INDEX IF NOT EXISTS idx_pii_vault_user_id ON pii_vault_entries(user_id);
-CREATE INDEX IF NOT EXISTS idx_pii_vault_field_name ON pii_vault_entries(field_name);
+CREATE INDEX IF NOT EXISTS idx_pii_vault_pii_type ON pii_vault_entries(pii_type);
+CREATE INDEX IF NOT EXISTS idx_pii_vault_pii_hash ON pii_vault_entries(pii_hash);

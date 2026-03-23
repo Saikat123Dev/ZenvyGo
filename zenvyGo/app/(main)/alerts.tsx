@@ -38,7 +38,7 @@ export default function AlertsScreen() {
   const insets = useSafeAreaInsets();
 
   // Global store
-  const { alerts, isLoading, isRefreshing, fetchAlerts, markAlertRead } = useAppStore();
+  const { alerts, isLoading, isRefreshing, fetchAlerts, markAlertRead, markAllAlertsRead } = useAppStore();
   const unreadAlerts = useUnreadAlerts();
 
   // Load data on focus
@@ -72,21 +72,29 @@ export default function AlertsScreen() {
     // Optimistic update
     markAlertRead(alertItem.id);
 
-    // API call in background
-    await apiService.markAlertRead(alertItem.id);
-  }, [markAlertRead]);
+    try {
+      // API call in background
+      await apiService.markAlertRead(alertItem.id);
+    } catch {
+      // Revert optimism on error
+      fetchAlerts();
+    }
+  }, [markAlertRead, fetchAlerts]);
 
   const handleMarkAllRead = useCallback(async () => {
-    // Optimistic update
-    for (const alertItem of unreadAlerts) {
-      markAlertRead(alertItem.id);
-    }
+    if (unreadAlerts.length === 0) return;
 
-    // API calls in background
-    await Promise.allSettled(
-      unreadAlerts.map((alertItem) => apiService.markAlertRead(alertItem.id))
-    );
-  }, [unreadAlerts, markAlertRead]);
+    // Optimistic update
+    markAllAlertsRead();
+
+    // API call in background
+    try {
+      await apiService.markAllAlertsRead();
+    } catch {
+      // Revert in real app or silent fail, for now just fetch to refresh
+      fetchAlerts();
+    }
+  }, [unreadAlerts.length, markAllAlertsRead, fetchAlerts]);
 
   const renderItem = useCallback(({ item, index }: { item: AlertItem; index: number }) => (
     <Animated.View entering={FadeInDown.delay(Math.min(index * 50, 200)).springify()}>

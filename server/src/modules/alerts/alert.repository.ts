@@ -56,6 +56,7 @@ export class AlertRepository extends BaseRepository {
         FROM alerts
         WHERE user_id = ?
         ORDER BY created_at DESC
+        LIMIT 100
       `,
       [userId],
     );
@@ -84,6 +85,18 @@ export class AlertRepository extends BaseRepository {
           AND user_id = ?
       `,
       [alertId, userId],
+    );
+  }
+
+  public async markAllRead(userId: string): Promise<void> {
+    await this.query<ResultSetHeader>(
+      `
+        UPDATE alerts
+        SET is_read = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+          AND is_read = 0
+      `,
+      [userId],
     );
   }
 }

@@ -405,6 +405,10 @@ class ApiService {
     return this.patch<AlertItem>(`/alerts/${alertId}/read`, {});
   }
 
+  async markAllAlertsRead(): Promise<ApiResponse<null>> {
+    return this.patch<null>('/alerts/read-all', {});
+  }
+
   async listContactSessions(): Promise<ApiResponse<ContactSession[]>> {
     return this.get<ContactSession[]>('/contact-sessions');
   }

@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+:root {
+  --background: #04070d;
+  --foreground: #f7fbff;
+  --font-sans-stack: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display-stack: "Poppins", "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --panel: rgba(10, 16, 29, 0.76);
+  --panel-strong: rgba(14, 22, 38, 0.92);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --muted: #96a7c2;
+  --muted-strong: #cad7ec;
+  --border-subtle: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.26);
+  --brand-500: #3b82f6;
+  --brand-400: #60a5fa;
+  --cyan-400: #22d3ee;
+  --fuchsia-400: #e879f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-panel-soft: var(--panel-soft);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-brand-500: var(--brand-500);
+  --color-brand-400: var(--brand-400);
+  --color-cyan-400: var(--cyan-400);
+  --color-fuchsia-400: var(--fuchsia-400);
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 24%),
+    radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.12), transparent 28%),
+    radial-gradient(circle at 80% 10%, rgba(232, 121, 249, 0.1), transparent 24%),
+    linear-gradient(180deg, #03060d 0%, #04070d 36%, #050912 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans-stack);
+  text-rendering: optimizeLegibility;
+}
+
+img {
+  height: auto;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.skip-link {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 80;
+  transform: translateY(-200%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(4, 7, 13, 0.94);
+  padding: 0.7rem 1rem;
+  color: #f8fbff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 180ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.22);
+  color: #f0fdff;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black 22%, transparent 80%);
+  opacity: 0.55;
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_28px_120px_rgba(2,6,23,0.5)];
+  }
+
+  .glass-card {
+    @apply border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-[0_18px_70px_rgba(2,6,23,0.35)];
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .content-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 920px;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.06);
+  }
+}
+
+@keyframes gradientShift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: translate3d(0, 16px, 0) scale(1.02);
+    opacity: 1;
+  }
+}
+
+@keyframes heroFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes heroPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.orb {
+  animation: drift 18s ease-in-out infinite;
+}
+
+.orb-delay {
+  animation-delay: -6s;
+}
+
+.site-gradient {
+  animation: gradientShift 16s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.hero-stage {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 30px 120px rgba(2, 6, 23, 0.46);
+}
+
+.hero-object-3d {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.hero-float {
+  animation: heroFloat 6s ease-in-out infinite;
+}
+
+.hero-pulse {
+  animation: heroPulse 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .orb,
+  .site-gradient,
+  .hero-float,
+  .hero-pulse {
+    animation: none;
+  }
+}

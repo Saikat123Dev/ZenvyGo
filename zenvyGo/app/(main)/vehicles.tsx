@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   Car,
   HeartHandshake,
@@ -84,11 +85,13 @@ const EMPTY_CONTACT: EmergencyContactFormState = {
   relation: '',
 };
 
-const EMPTY_EMERGENCY_FORM: EmergencyFormState = {
-  contacts: [{ ...EMPTY_CONTACT }],
-  medicalNotes: '',
-  roadsideAssistanceNumber: '',
-};
+function createEmptyEmergencyForm(): EmergencyFormState {
+  return {
+    contacts: [{ ...EMPTY_CONTACT }],
+    medicalNotes: '',
+    roadsideAssistanceNumber: '',
+  };
+}
 
 export default function VehiclesScreen() {
   const colorScheme = useColorScheme();
@@ -121,8 +124,10 @@ export default function VehiclesScreen() {
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
   const [selectedVehicleForEmergency, setSelectedVehicleForEmergency] = useState<Vehicle | null>(null);
   const [emergencyProfile, setEmergencyProfile] = useState<EmergencyProfile | null>(null);
-  const [emergencyForm, setEmergencyForm] = useState<EmergencyFormState>(EMPTY_EMERGENCY_FORM);
+  const [emergencyForm, setEmergencyForm] = useState<EmergencyFormState>(createEmptyEmergencyForm);
   const [loadingEmergencyProfile, setLoadingEmergencyProfile] = useState(false);
+  const [emergencyProfileError, setEmergencyProfileError] = useState<string | null>(null);
+  const emergencyModalRequestId = useRef(0);
 
   // Load data on focus (with caching)
   useFocusEffect(
@@ -184,6 +189,21 @@ export default function VehiclesScreen() {
     setVehicleFormError(null);
     setVehicleModalVisible(true);
   }, []);
+
+  const resetEmergencyEditor = useCallback(() => {
+    setEmergencyProfile(null);
+    setEmergencyForm(createEmptyEmergencyForm());
+    setLoadingEmergencyProfile(false);
+    setEmergencyProfileError(null);
+    setSubmittingEmergency(false);
+  }, []);
+
+  const closeEmergencyModal = useCallback(() => {
+    emergencyModalRequestId.current += 1;
+    setEmergencyModalVisible(false);
+    setSelectedVehicleForEmergency(null);
+    resetEmergencyEditor();
+  }, [resetEmergencyEditor]);
 
   const handleSaveVehicle = useCallback(async () => {
     if (!vehicleForm.plateNumber.trim()) {
@@ -294,29 +314,82 @@ export default function VehiclesScreen() {
     setQrModalVisible(true);
   }, []);
 
-  const openEmergencyModal = useCallback(async (vehicle: Vehicle) => {
+  const loadEmergencyProfile = useCallback(async (vehicle: Vehicle) => {
+    const requestId = emergencyModalRequestId.current + 1;
+    emergencyModalRequestId.current = requestId;
+
     setSelectedVehicleForEmergency(vehicle);
     setEmergencyModalVisible(true);
     setLoadingEmergencyProfile(true);
+    setEmergencyProfileError(null);
     setEmergencyProfile(null);
+    setEmergencyForm(createEmptyEmergencyForm());
 
     const response = await apiService.getEmergencyProfile(vehicle.id);
+
+    if (emergencyModalRequestId.current !== requestId) {
+      return;
+    }
+
+    setLoadingEmergencyProfile(false);
+
     if (!response.success) {
-      setLoadingEmergencyProfile(false);
-      Alert.alert('Unable to load emergency profile', response.error || 'Please try again.');
+      setEmergencyProfileError(response.error || 'Please try again.');
       return;
     }
 
     const profile = response.data ?? null;
     setEmergencyProfile(profile);
-    setEmergencyForm(profile ? mapProfileToForm(profile) : EMPTY_EMERGENCY_FORM);
-    setLoadingEmergencyProfile(false);
+    setEmergencyForm(profile ? mapProfileToForm(profile) : createEmptyEmergencyForm());
+  }, []);
+
+  const openEmergencyModal = useCallback((vehicle: Vehicle) => {
+    void loadEmergencyProfile(vehicle);
+  }, [loadEmergencyProfile]);
+
+  const retryEmergencyProfileLoad = useCallback(() => {
+    if (!selectedVehicleForEmergency) {
+      return;
+    }
+
+    void loadEmergencyProfile(selectedVehicleForEmergency);
+  }, [loadEmergencyProfile, selectedVehicleForEmergency]);
+
+  const updateEmergencyContact = useCallback(
+    (index: number, updates: Partial<EmergencyContactFormState>) => {
+      setEmergencyForm((current) => ({
+        ...current,
+        contacts: current.contacts.map((contact, contactIndex) =>
+          contactIndex === index ? { ...contact, ...updates } : contact,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const addEmergencyContact = useCallback(() => {
+    setEmergencyForm((current) => ({
+      ...current,
+      contacts: [...current.contacts, { ...EMPTY_CONTACT }],
+    }));
+  }, []);
+
+  const removeEmergencyContact = useCallback((index: number) => {
+    setEmergencyForm((current) => {
+      const nextContacts = current.contacts.filter((_, contactIndex) => contactIndex !== index);
+      return {
+        ...current,
+        contacts: nextContacts.length > 0 ? nextContacts : [{ ...EMPTY_CONTACT }],
+      };
+    });
   }, []);
 
   const handleSaveEmergencyProfile = useCallback(async () => {
     if (!selectedVehicleForEmergency) {
       return;
     }
+
+    const requestId = emergencyModalRequestId.current;
 
     const contacts = emergencyForm.contacts
       .map((contact) => ({
@@ -342,6 +415,10 @@ export default function VehiclesScreen() {
       roadsideAssistanceNumber: toNullable(emergencyForm.roadsideAssistanceNumber),
     });
 
+    if (emergencyModalRequestId.current !== requestId) {
+      return;
+    }
+
     setSubmittingEmergency(false);
 
     if (!response.success || !response.data) {
@@ -350,8 +427,9 @@ export default function VehiclesScreen() {
     }
 
     setEmergencyProfile(response.data);
-    setEmergencyModalVisible(false);
-  }, [selectedVehicleForEmergency, emergencyForm]);
+    setEmergencyForm(mapProfileToForm(response.data));
+    closeEmergencyModal();
+  }, [closeEmergencyModal, selectedVehicleForEmergency, emergencyForm]);
 
   const renderVehicleCard = useCallback(({ item: vehicle, index }: { item: Vehicle; index: number }) => {
     const vehicleTags = tagsByVehicleId.get(vehicle.id) ?? [];
@@ -690,9 +768,9 @@ export default function VehiclesScreen() {
             ? `Emergency contacts for ${formatVehicleName(selectedVehicleForEmergency)}`
             : 'Emergency profile'
         }
-        onClose={() => setEmergencyModalVisible(false)}
+        onClose={closeEmergencyModal}
         footer={
-          loadingEmergencyProfile ? null : (
+          loadingEmergencyProfile || emergencyProfileError ? null : (
             <Button loading={submittingEmergency} onPress={handleSaveEmergencyProfile} fullWidth={false}>
               Save Profile
             </Button>
@@ -702,51 +780,62 @@ export default function VehiclesScreen() {
           <View style={styles.centered}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
+        ) : emergencyProfileError ? (
+          <View style={styles.emergencyState}>
+            <Text style={[styles.emergencyStateTitle, { color: colors.text }]}>
+              Unable to load emergency profile
+            </Text>
+            <Text style={[styles.emergencyStateBody, { color: colors.textSecondary }]}>
+              {emergencyProfileError}
+            </Text>
+            <Button variant="outline" fullWidth={false} onPress={retryEmergencyProfileLoad}>
+              Retry
+            </Button>
+          </View>
         ) : (
           <>
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
               EMERGENCY CONTACTS
             </Text>
             {emergencyForm.contacts.map((contact, index) => (
-              <View key={index} style={styles.contactBlock}>
+              <View
+                key={index}
+                style={[
+                  styles.contactBlock,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}>
+                <View style={styles.contactBlockHeader}>
+                  <Text style={[styles.contactBlockTitle, { color: colors.text }]}>
+                    Contact {index + 1}
+                  </Text>
+                  {emergencyForm.contacts.length > 1 ? (
+                    <TouchableOpacity onPress={() => removeEmergencyContact(index)}>
+                      <Text style={[styles.contactRemoveText, { color: colors.danger }]}>
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
                 <Input
-                  label={`Contact ${index + 1} Name`}
+                  label="Name"
                   value={contact.name}
-                  onChangeText={(text) =>
-                    setEmergencyForm((current) => ({
-                      ...current,
-                      contacts: current.contacts.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, name: text } : item,
-                      ),
-                    }))
-                  }
+                  onChangeText={(text) => updateEmergencyContact(index, { name: text })}
                   placeholder="Aisha Khan"
                 />
                 <Input
                   label="Phone"
                   value={contact.phone}
-                  onChangeText={(text) =>
-                    setEmergencyForm((current) => ({
-                      ...current,
-                      contacts: current.contacts.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, phone: text } : item,
-                      ),
-                    }))
-                  }
+                  onChangeText={(text) => updateEmergencyContact(index, { phone: text })}
                   placeholder="+971501234567"
                   keyboardType="phone-pad"
                 />
                 <Input
                   label="Relation"
                   value={contact.relation}
-                  onChangeText={(text) =>
-                    setEmergencyForm((current) => ({
-                      ...current,
-                      contacts: current.contacts.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, relation: text } : item,
-                      ),
-                    }))
-                  }
+                  onChangeText={(text) => updateEmergencyContact(index, { relation: text })}
                   placeholder="Spouse, sibling, coworker"
                 />
               </View>
@@ -755,12 +844,7 @@ export default function VehiclesScreen() {
               <Button
                 variant="outline"
                 fullWidth={false}
-                onPress={() =>
-                  setEmergencyForm((current) => ({
-                    ...current,
-                    contacts: [...current.contacts, { ...EMPTY_CONTACT }],
-                  }))
-                }>
+                onPress={addEmergencyContact}>
                 Add Contact
               </Button>
             ) : null}
@@ -824,7 +908,7 @@ function VehicleEditorModal({
       <View style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]}>
         <KeyboardAvoidingView
           style={styles.modalWrapper}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderCopy}>
@@ -840,14 +924,14 @@ function VehicleEditorModal({
               </TouchableOpacity>
             </View>
 
-            <FlatList
-              data={[{ key: 'content' }]}
-              renderItem={() => <View>{children}</View>}
+            <ScrollView
               style={styles.modalBody}
               contentContainerStyle={styles.modalBodyContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-            />
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
+              {children}
+            </ScrollView>
 
             {footer ? <View style={styles.modalFooterContainer}>{footer}</View> : null}
           </View>
@@ -1183,11 +1267,37 @@ const styles = StyleSheet.create({
   },
   contactBlock: {
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
     borderRadius: borderRadius.xl,
     padding: spacing.section,
     marginBottom: spacing.component,
     ...shadows.sm,
+  },
+  contactBlockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.component,
+  },
+  contactBlockTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  contactRemoveText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  emergencyState: {
+    alignItems: 'flex-start',
+    gap: spacing.component,
+    paddingVertical: spacing.component,
+  },
+  emergencyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  emergencyStateBody: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   multilineInput: {
     minHeight: 96,

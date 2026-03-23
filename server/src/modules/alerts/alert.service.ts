@@ -1,5 +1,4 @@
 import { cacheService } from '../../shared/cache/cache.service';
-import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { NotFoundError } from '../../shared/utils/api-error';
 import { generateUUID } from '../../shared/utils/crypto';
 import { AlertRepository, type AlertRecord } from './alert.repository';

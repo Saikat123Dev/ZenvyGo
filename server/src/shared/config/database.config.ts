@@ -20,5 +20,4 @@ export const databaseConfig: PoolOptions = {
   multipleStatements: false,
   // Connection pool optimization
   maxIdle: 5, // Maximum idle connections to maintain
-  idleCheckInterval: 60000, // Check for idle connections every 60s
 };

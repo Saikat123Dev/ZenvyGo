@@ -1,6 +1,5 @@
 import { SESSION } from '../../shared/config/constants';
 import { cacheService } from '../../shared/cache/cache.service';
-import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { eventBus } from '../../shared/events/event-bus';
 import { generateUUID } from '../../shared/utils/crypto';
 import { NotFoundError, RateLimitError } from '../../shared/utils/api-error';

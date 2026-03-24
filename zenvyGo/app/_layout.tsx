@@ -4,6 +4,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } fro
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 import '../global.css';
 
@@ -63,6 +64,12 @@ function RootNavigator() {
   const { status, isAuthenticated } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.background).catch(() => {
+      // Ignore system UI errors so navigation can continue rendering.
+    });
+  }, [colors.background]);
 
   useEffect(() => {
     if (status !== 'loading') {

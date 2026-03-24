@@ -11,9 +11,12 @@ export default function MainTabsLayout() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const isAndroid = Platform.OS === 'android';
+  const tabBarHeight = componentHeights.tabBar + (isAndroid ? 0 : insets.bottom);
 
   return (
     <Tabs
+      safeAreaInsets={isAndroid ? { bottom: 0 } : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.tabIconSelected,
@@ -21,9 +24,10 @@ export default function MainTabsLayout() {
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: colors.tabBackground,
-          height: componentHeights.tabBar + insets.bottom,
-          paddingBottom: insets.bottom,
+          height: tabBarHeight,
+          paddingBottom: isAndroid ? spacing.tight : insets.bottom,
           paddingTop: spacing.tight,
+          marginBottom: isAndroid ? insets.bottom : 0,
           ...Platform.select({
             ios: {
               ...shadows.default,

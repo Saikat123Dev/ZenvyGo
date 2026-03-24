@@ -88,33 +88,95 @@ class FtpService {
       // Generate unique file name
       const ext = this.getExtensionFromMime(mimeType) || path.extname(originalName) || '.jpg';
       const fileName = `${generateUUID()}${ext}`;
-      const remotePath = `${env.FTP_REMOTE_DIR}/${fileName}`;
+      const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
+      const attemptErrors: Array<{ dir: string; message: string }> = [];
 
-      // Ensure directory exists
-      await client.ensureDir(env.FTP_REMOTE_DIR);
+      for (const dir of directoryCandidates) {
+        const remotePath = this.buildRemotePath(dir, fileName);
 
-      // Create readable stream from buffer
-      const stream = Readable.from(buffer);
+        try {
+          if (dir !== '.') {
+            await client.ensureDir(dir);
+          }
 
-      // Upload file
-      await client.uploadFrom(stream, remotePath);
+          await client.uploadFrom(Readable.from(buffer), remotePath);
 
-      const fileUrl = `${env.FTP_PUBLIC_URL}${remotePath}`;
+          const fileUrl = this.buildPublicFileUrl(remotePath);
 
-      log.info('File uploaded successfully via FTP', {
-        fileName,
-        remotePath,
-        size: buffer.length,
-      });
+          log.info('File uploaded successfully via FTP', {
+            fileName,
+            remotePath,
+            uploadDirUsed: dir,
+            size: buffer.length,
+          });
 
-      return {
-        fileUrl,
-        fileName,
-        filePath: remotePath,
-      };
+          return {
+            fileUrl,
+            fileName,
+            filePath: remotePath,
+          };
+        } catch (error: any) {
+          const message = String(error?.message ?? 'Unknown FTP upload error');
+          attemptErrors.push({ dir, message });
+
+          if (!this.isDirectoryFallbackError(message)) {
+            throw error;
+          }
+
+          log.warn('FTP upload attempt failed for directory candidate', {
+            dir,
+            message,
+          });
+        }
+      }
+
+      throw new Error(
+        `FTP upload failed for all directory candidates: ${attemptErrors
+          .map((attempt) => `${attempt.dir}: ${attempt.message}`)
+          .join(' | ')}`
+      );
     } finally {
       client.close();
     }
+  }
+
+  private getDirectoryCandidates(configuredDir: string): string[] {
+    const normalized = (configuredDir || '.').trim().replace(/\/+$/, '') || '/';
+    const candidates = [normalized];
+
+    if (normalized.startsWith('/')) {
+      const withoutLeadingSlash = normalized.slice(1);
+      if (withoutLeadingSlash) {
+        candidates.push(withoutLeadingSlash);
+      }
+    } else {
+      candidates.push(`/${normalized}`);
+    }
+
+    candidates.push('.');
+
+    return [...new Set(candidates)];
+  }
+
+  private buildRemotePath(dir: string, fileName: string): string {
+    if (dir === '.' || dir === '/') {
+      return fileName;
+    }
+    return `${dir}/${fileName}`;
+  }
+
+  private buildPublicFileUrl(remotePath: string): string {
+    const baseUrl = env.FTP_PUBLIC_URL!.replace(/\/+$/, '');
+    const normalizedPath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+    return `${baseUrl}${normalizedPath}`;
+  }
+
+  private isDirectoryFallbackError(message: string): boolean {
+    return (
+      message.includes('550') ||
+      message.toLowerCase().includes('failed to change directory') ||
+      message.toLowerCase().includes('no such file or directory')
+    );
   }
 
   /**

@@ -16,6 +16,7 @@ export interface UploadResult {
  */
 class FtpService {
   private isConfigured: boolean = false;
+  private resolvedUploadDir?: string;
 
   constructor() {
     this.isConfigured = this.checkConfiguration();
@@ -89,9 +90,15 @@ class FtpService {
       const ext = this.getExtensionFromMime(mimeType) || path.extname(originalName) || '.jpg';
       const fileName = `${generateUUID()}${ext}`;
       const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
+      const orderedCandidates = this.resolvedUploadDir
+        ? [
+            this.resolvedUploadDir,
+            ...directoryCandidates.filter((candidate) => candidate !== this.resolvedUploadDir),
+          ]
+        : directoryCandidates;
       const attemptErrors: Array<{ dir: string; message: string }> = [];
 
-      for (const dir of directoryCandidates) {
+      for (const dir of orderedCandidates) {
         const remotePath = this.buildRemotePath(dir, fileName);
 
         try {
@@ -109,6 +116,8 @@ class FtpService {
             uploadDirUsed: dir,
             size: buffer.length,
           });
+
+          this.resolvedUploadDir = dir;
 
           return {
             fileUrl,
@@ -135,6 +144,65 @@ class FtpService {
           .map((attempt) => `${attempt.dir}: ${attempt.message}`)
           .join(' | ')}`
       );
+    } finally {
+      client.close();
+    }
+  }
+
+  /**
+   * Startup health check to validate FTP connectivity and resolve an upload directory.
+   * Non-throwing by design so it never blocks application boot.
+   */
+  async runStartupHealthCheck(): Promise<void> {
+    if (!this.isConfigured) {
+      log.warn('FTP startup health check skipped: FTP is not configured.');
+      return;
+    }
+
+    const client = await this.createClient();
+
+    try {
+      const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
+      const attemptErrors: Array<{ dir: string; message: string }> = [];
+
+      for (const dir of directoryCandidates) {
+        try {
+          if (dir !== '.' && dir !== '/') {
+            await client.cd(dir);
+          }
+
+          this.resolvedUploadDir = dir;
+
+          log.info('FTP startup health check passed', {
+            resolvedUploadDir: dir,
+            configuredUploadDir: env.FTP_REMOTE_DIR,
+            directoryCandidates,
+          });
+
+          return;
+        } catch (error: any) {
+          const message = String(error?.message ?? 'Unknown FTP directory check error');
+          attemptErrors.push({ dir, message });
+
+          if (!this.isDirectoryFallbackError(message)) {
+            throw error;
+          }
+
+          log.warn('FTP startup directory check failed for candidate', {
+            dir,
+            message,
+          });
+        }
+      }
+
+      log.error('FTP startup health check failed for all directory candidates', undefined, {
+        configuredUploadDir: env.FTP_REMOTE_DIR,
+        attempts: attemptErrors,
+      });
+    } catch (error: any) {
+      log.error('FTP startup health check encountered an unexpected error', error, {
+        configuredUploadDir: env.FTP_REMOTE_DIR,
+      });
     } finally {
       client.close();
     }

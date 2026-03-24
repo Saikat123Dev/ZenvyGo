@@ -3,6 +3,7 @@ import { db } from './shared/database/connection';
 import { cacheCleanupScheduler } from './shared/cache/cache-cleanup.scheduler';
 import { runMigrations } from './shared/database/migrations';
 import { log } from './shared/utils/logger';
+import { ftpService } from './shared/services/ftp.service';
 import { initializeApplication } from './app';
 
 async function bootstrap() {
@@ -15,6 +16,8 @@ async function bootstrap() {
       apiVersion: env.API_VERSION,
       baseUrl: env.APP_BASE_URL,
     });
+
+    void ftpService.runStartupHealthCheck();
   });
 
   const shutdown = async (signal: string) => {

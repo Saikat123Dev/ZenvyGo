@@ -17,7 +17,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   FileText,
@@ -29,6 +28,7 @@ import {
   Upload,
   X,
   ChevronDown,
+  Settings2,
   Image as ImageIcon,
   File,
 } from 'lucide-react-native';
@@ -68,6 +68,7 @@ export default function DocumentsScreen() {
   const [uploading, setUploading] = useState(false);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DriverDocument | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Upload form state
   const [selectedDocType, setSelectedDocType] = useState<DocumentTypeOption>(documentTypes[0]);
@@ -86,14 +87,25 @@ export default function DocumentsScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const res = await apiService.listDocuments();
+    setLoadError(null);
 
-    if (res.success && res.data) {
-      setDocuments(res.data);
-    } else if (res.error) {
-      Alert.alert('Error', res.error);
+    try {
+      const res = await apiService.listDocuments();
+
+      if (res.success && res.data) {
+        setDocuments(res.data);
+      } else {
+        const message = res.error || 'Failed to load documents';
+        setLoadError(message);
+        Alert.alert('Error', message);
+      }
+    } catch (error: any) {
+      const message = error?.message || 'Something went wrong while loading documents';
+      setLoadError(message);
+      Alert.alert('Error', message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useFocusEffect(
@@ -128,25 +140,34 @@ export default function DocumentsScreen() {
   };
 
   const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Camera roll permissions are required to upload images.');
-      return;
-    }
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Camera roll permissions are required to upload images.');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setSelectedFile({
-        uri: asset.uri,
-        name: asset.fileName || 'image.jpg',
-        type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'] as any,
+        allowsEditing: true,
+        quality: 0.8,
       });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setSelectedFile({
+          uri: asset.uri,
+          name: asset.fileName || 'image.jpg',
+          type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
+        });
+      }
+    } catch {
+      Alert.alert(
+        'Image Picker Unavailable',
+        'Image upload is unavailable in this build. Please rebuild the app after installing native modules, or use the PDF option.',
+      );
     }
   };
 
@@ -244,6 +265,21 @@ export default function DocumentsScreen() {
 
   const activeVehicles = vehicles.filter((v) => v.status === 'active');
   const firstActiveTag = tags.find((t) => t.state === 'activated');
+  const qrToken = typeof firstActiveTag?.token === 'string' ? firstActiveTag.token.trim() : '';
+
+  const handleBackPress = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(main)/settings' as any);
+  };
+
+  const closeUploadModal = () => {
+    setUploadModalVisible(false);
+    resetUploadForm();
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -254,23 +290,57 @@ export default function DocumentsScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + spacing.component }]}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.headerCopy}>
             <Text style={styles.headerTitle}>My Documents</Text>
             <Text style={styles.headerSubtitle}>Upload and manage driver documents</Text>
           </View>
-          <TouchableOpacity onPress={() => setUploadModalVisible(true)} style={styles.addButton}>
-            <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => router.push('/(main)/settings' as any)} style={styles.actionButtonHeader}>
+              <Settings2 size={18} color="#FFFFFF" strokeWidth={2.2} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setUploadModalVisible(true)} style={styles.actionButtonHeader}>
+              <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
+
+      {!firstActiveTag && (
+        <Card
+          style={{
+            marginHorizontal: spacing.section,
+            marginTop: spacing.section,
+            marginBottom: spacing.tight,
+          }}>
+          <View style={styles.infoBanner}>
+            <Text style={[styles.infoBannerTitle, { color: colors.text }]}>QR is not active yet</Text>
+            <Text style={[styles.infoBannerText, { color: colors.textSecondary }]}>Activate a tag from settings so passengers can scan and view visible documents.</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(main)/settings' as any)}
+              style={[styles.infoBannerCta, { backgroundColor: colors.primaryLighter }]}
+              activeOpacity={0.8}>
+              <Settings2 size={16} color={colors.primary} />
+              <Text style={[styles.infoBannerCtaText, { color: colors.primary }]}>Open Settings</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      )}
 
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : loadError ? (
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.emptyText, { color: colors.text }]}>Unable to load documents</Text>
+          <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>{loadError}</Text>
+          <Button onPress={loadData} style={{ marginTop: spacing.section }}>
+            Try Again
+          </Button>
         </View>
       ) : (
         <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: spacing.large }}>
@@ -302,14 +372,14 @@ export default function DocumentsScreen() {
           </Card>
 
           {/* QR Code Section */}
-          {firstActiveTag && (
+          {firstActiveTag && qrToken.length > 0 && (
             <>
               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MY DRIVER QR CODE</Text>
               <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
                 <View style={styles.qrSection}>
                   <View style={styles.qrCodeContainer}>
                     <QRCode
-                      value={firstActiveTag.token}
+                      value={qrToken}
                       size={180}
                       backgroundColor="white"
                       color={colors.text}
@@ -362,14 +432,14 @@ export default function DocumentsScreen() {
       )}
 
       {/* Upload Modal */}
-      <Modal visible={uploadModalVisible} animationType="slide" transparent onRequestClose={() => setUploadModalVisible(false)}>
+      <Modal visible={uploadModalVisible} animationType="slide" transparent onRequestClose={closeUploadModal}>
         <View style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
               {/* Modal Header */}
               <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Upload Document</Text>
-                <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
+                <TouchableOpacity onPress={closeUploadModal}>
                   <X size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -480,10 +550,7 @@ export default function DocumentsScreen() {
               <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
                 <Button
                   variant="outline"
-                  onPress={() => {
-                    setUploadModalVisible(false);
-                    resetUploadForm();
-                  }}
+                  onPress={closeUploadModal}
                   style={{ flex: 1, marginRight: spacing.default }}>
                   Cancel
                 </Button>
@@ -491,8 +558,8 @@ export default function DocumentsScreen() {
                   onPress={handleUpload}
                   loading={uploading}
                   disabled={!selectedFile || !documentName.trim() || uploading}
+                  leftIcon={<Upload size={16} color="#FFFFFF" />}
                   style={{ flex: 1 }}>
-                  <Upload size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                   Upload
                 </Button>
               </View>
@@ -560,7 +627,7 @@ export default function DocumentsScreen() {
             </View>
             {previewDocument && (
               <ScrollView style={styles.previewBody}>
-                {previewDocument.fileType.startsWith('image') ? (
+                {(previewDocument.fileType || '').startsWith('image') ? (
                   <Image source={{ uri: previewDocument.fileUrl }} style={styles.previewImage} resizeMode="contain" />
                 ) : (
                   <View style={styles.pdfPreview}>
@@ -680,6 +747,43 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.tight,
+  },
+  actionButtonHeader: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBanner: {
+    gap: spacing.default,
+  },
+  infoBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  infoBannerText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  infoBannerCta: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.component,
+    paddingVertical: spacing.default,
+    borderRadius: borderRadius.default,
+    gap: spacing.tight,
+  },
+  infoBannerCtaText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

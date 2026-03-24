@@ -1,5 +1,10 @@
 import { generateUUID } from '../../shared/utils/crypto';
-import { NotFoundError, BadRequestError } from '../../shared/utils/api-error';
+import {
+  NotFoundError,
+  BadRequestError,
+  ServiceUnavailableError,
+} from '../../shared/utils/api-error';
+import { log } from '../../shared/utils/logger';
 import { ftpService } from '../../shared/services/ftp.service';
 import { DocumentRepository, type DocumentRecord } from './document.repository';
 import type { DocumentType } from './document.schemas';
@@ -99,11 +104,23 @@ class DocumentService {
     }
 
     // Upload file to FTP
-    const uploadResult = await ftpService.uploadBuffer(
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-    );
+    let uploadResult;
+    try {
+      uploadResult = await ftpService.uploadBuffer(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+    } catch (error: any) {
+      log.error('Document upload failed during FTP transfer', error, {
+        userId,
+        documentType: input.documentType,
+      });
+
+      throw new ServiceUnavailableError(
+        'Document upload is temporarily unavailable. Please try again shortly.',
+      );
+    }
 
     const documentId = generateUUID();
 

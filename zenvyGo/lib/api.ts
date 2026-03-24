@@ -214,10 +214,15 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    const incomingHeaders = (options.headers as Record<string, string>) || {};
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...((options.headers as Record<string, string>) || {}),
+      ...incomingHeaders,
     };
+
+    if (!isFormDataBody && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (this.accessToken) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
@@ -276,7 +281,7 @@ class ApiService {
         return { ...parsed, error: parsed.message };
       }
       return parsed;
-    } catch (error) {
+    } catch {
       return {
         success: response.ok,
         error: response.ok ? undefined : 'Failed to parse server response',
@@ -510,9 +515,6 @@ class ApiService {
 
     return this.request<DriverDocument>('/documents', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
       body: formData,
     });
   }

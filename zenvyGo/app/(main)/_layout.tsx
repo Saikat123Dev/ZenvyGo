@@ -28,18 +28,19 @@ export default function MainTabsLayout() {
           paddingBottom: isAndroid ? spacing.tight : insets.bottom,
           paddingTop: spacing.tight,
           marginBottom: isAndroid ? insets.bottom : 0,
+          borderTopWidth: 0,
           ...Platform.select({
             ios: {
               ...shadows.default,
             },
             android: {
-              elevation: 4,
+              elevation: shadows.default.elevation,
             },
           }),
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: '500',
           marginTop: 2,
         },
       }}>
@@ -101,6 +102,12 @@ export default function MainTabsLayout() {
       {/* Hidden screens - accessible via navigation but not shown in tab bar */}
       <Tabs.Screen
         name="settings"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="documents"
         options={{
           href: null,
         }}

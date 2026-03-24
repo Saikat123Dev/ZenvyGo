@@ -4,6 +4,26 @@ import { z } from 'zod';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+const normalizeOptionalString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim() || undefined;
+  }
+
+  return trimmed;
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -30,7 +50,7 @@ const envSchema = z.object({
   OTP_DRIVER: z.enum(['mock', 'email', 'disabled']).default('mock'),
 
   // SMTP Email Configuration
-  SMTP_HOST: z.string().optional(),
+  SMTP_HOST: z.preprocess(normalizeOptionalString, z.string().optional()),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: z.preprocess((value) => {
     if (typeof value === 'string') {
@@ -44,9 +64,9 @@ const envSchema = z.object({
     }
     return value;
   }, z.boolean().default(false)),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
-  SMTP_FROM_EMAIL: z.string().email().optional(),
+  SMTP_USER: z.preprocess(normalizeOptionalString, z.string().optional()),
+  SMTP_PASSWORD: z.preprocess(normalizeOptionalString, z.string().optional()),
+  SMTP_FROM_EMAIL: z.preprocess(normalizeOptionalString, z.string().email().optional()),
   SMTP_FROM_NAME: z.string().default('ZenvyGo'),
 
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -54,10 +74,10 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 
   // FTP Configuration for file uploads
-  FTP_HOST: z.string().optional(),
+  FTP_HOST: z.preprocess(normalizeOptionalString, z.string().optional()),
   FTP_PORT: z.coerce.number().int().positive().default(21),
-  FTP_USER: z.string().optional(),
-  FTP_PASSWORD: z.string().optional(),
+  FTP_USER: z.preprocess(normalizeOptionalString, z.string().optional()),
+  FTP_PASSWORD: z.preprocess(normalizeOptionalString, z.string().optional()),
   FTP_SECURE: z.preprocess((value) => {
     if (typeof value === 'string') {
       const normalized = value.trim().toLowerCase();
@@ -70,8 +90,11 @@ const envSchema = z.object({
     }
     return value;
   }, z.boolean().default(false)),
-  FTP_BASE_PATH: z.string().default('/uploads/documents'),
-  FTP_PUBLIC_URL: z.string().optional(),
+  FTP_BASE_PATH: z.preprocess(
+    (value) => normalizeOptionalString(value) ?? '/uploads/documents',
+    z.string(),
+  ),
+  FTP_PUBLIC_URL: z.preprocess(normalizeOptionalString, z.string().optional()),
 });
 
 function validateEnv() {

@@ -43,6 +43,7 @@ interface AppState {
 
   // Cache control
   invalidateCache: () => void;
+  clearData: () => void;
   isCacheValid: () => boolean;
 }
 
@@ -70,6 +71,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   invalidateCache: () => set({ lastFetchedAt: null }),
+
+  clearData: () =>
+    set({
+      vehicles: [],
+      tags: [],
+      alerts: [],
+      sessions: [],
+      error: null,
+      isLoading: false,
+      isRefreshing: false,
+      lastFetchedAt: null,
+    }),
 
   fetchAll: async (mode = 'initial') => {
     const state = get();

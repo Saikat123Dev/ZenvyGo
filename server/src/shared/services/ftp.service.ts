@@ -164,6 +164,13 @@ class FtpService {
     try {
       const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
       const attemptErrors: Array<{ dir: string; message: string }> = [];
+      let currentDir: string | undefined;
+
+      try {
+        currentDir = await client.pwd();
+      } catch {
+        currentDir = undefined;
+      }
 
       for (const dir of directoryCandidates) {
         try {
@@ -173,11 +180,21 @@ class FtpService {
 
           this.resolvedUploadDir = dir;
 
-          log.info('FTP startup health check passed', {
-            resolvedUploadDir: dir,
-            configuredUploadDir: env.FTP_REMOTE_DIR,
-            directoryCandidates,
-          });
+          if (dir !== env.FTP_REMOTE_DIR) {
+            log.warn('FTP upload directory fallback selected at startup', {
+              configuredUploadDir: env.FTP_REMOTE_DIR,
+              resolvedUploadDir: dir,
+              currentDir,
+              directoryCandidates,
+              failedCandidates: attemptErrors,
+            });
+          } else {
+            log.info('FTP startup health check passed', {
+              resolvedUploadDir: dir,
+              configuredUploadDir: env.FTP_REMOTE_DIR,
+              currentDir,
+            });
+          }
 
           return;
         } catch (error: any) {
@@ -187,16 +204,12 @@ class FtpService {
           if (!this.isDirectoryFallbackError(message)) {
             throw error;
           }
-
-          log.warn('FTP startup directory check failed for candidate', {
-            dir,
-            message,
-          });
         }
       }
 
       log.error('FTP startup health check failed for all directory candidates', undefined, {
         configuredUploadDir: env.FTP_REMOTE_DIR,
+        currentDir,
         attempts: attemptErrors,
       });
     } catch (error: any) {

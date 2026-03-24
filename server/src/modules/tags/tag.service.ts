@@ -7,7 +7,7 @@ import { NotFoundError } from '../../shared/utils/api-error';
 import { generateToken, generateUUID } from '../../shared/utils/crypto';
 import { vehicleService } from '../vehicles/vehicle.service';
 import { documentService, type PublicDocumentView } from '../documents/document.service';
-import { userRepository } from '../users/user.repository';
+import { userService } from '../users/user.service';
 import { TagRepository, type TagRecord, type TagWithOwnerRecord } from './tag.repository';
 
 export interface TagSummary {
@@ -149,7 +149,7 @@ class TagService {
 
   private async toResolvedTag(record: TagWithOwnerRecord): Promise<ResolvedTag> {
     // Fetch driver info
-    const user = await userRepository.findById(record.owner_id);
+    const user = await userService.getById(record.owner_id).catch(() => null);
 
     // Fetch visible documents for driver (user-level and vehicle-level)
     const [userDocuments, vehicleDocuments] = await Promise.all([
@@ -177,7 +177,7 @@ class TagService {
       allowedChannels: ['call', 'sms', 'whatsapp', 'in_app'],
       driverProfile: {
         name: user?.name ?? null,
-        profilePhotoUrl: user?.profile_photo_url ?? null,
+        profilePhotoUrl: null,
         documents: allVisibleDocuments,
       },
     };

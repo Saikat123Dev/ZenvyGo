@@ -88,10 +88,10 @@ class FtpService {
       // Generate unique file name
       const ext = this.getExtensionFromMime(mimeType) || path.extname(originalName) || '.jpg';
       const fileName = `${generateUUID()}${ext}`;
-      const remotePath = `${env.FTP_BASE_PATH}/${fileName}`;
+      const remotePath = `${env.FTP_REMOTE_DIR}/${fileName}`;
 
       // Ensure directory exists
-      await client.ensureDir(env.FTP_BASE_PATH);
+      await client.ensureDir(env.FTP_REMOTE_DIR);
 
       // Create readable stream from buffer
       const stream = Readable.from(buffer);

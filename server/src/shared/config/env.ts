@@ -24,6 +24,18 @@ const normalizeOptionalString = (value: unknown): string | undefined => {
   return trimmed;
 };
 
+const normalizeFtpRemoteDir = (value: unknown): string | undefined => {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  const trimmedTrailingSlash = withLeadingSlash.replace(/\/+$/, '');
+
+  return trimmedTrailingSlash || '/';
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -89,10 +101,11 @@ const envSchema = z.object({
     }
     return value;
   }, z.boolean().default(false)),
-  FTP_BASE_PATH: z.preprocess(
-    (value) => normalizeOptionalString(value) ?? '/uploads/documents',
+  FTP_REMOTE_DIR: z.preprocess(
+    (value) => normalizeFtpRemoteDir(value) ?? '/uploads/documents',
     z.string()
   ),
+  FTP_BASE_PATH: z.preprocess(normalizeFtpRemoteDir, z.string().optional()),
   FTP_PUBLIC_URL: z.preprocess(normalizeOptionalString, z.string().optional()),
 });
 
@@ -113,8 +126,15 @@ function validateEnv() {
   }
 }
 
-export const env = validateEnv();
-export type Env = z.infer<typeof envSchema>;
+const parsedEnv = validateEnv();
+const ftpRemoteDir = parsedEnv.FTP_REMOTE_DIR ?? parsedEnv.FTP_BASE_PATH ?? '/uploads/documents';
+
+export const env = {
+  ...parsedEnv,
+  FTP_REMOTE_DIR: ftpRemoteDir,
+  FTP_BASE_PATH: ftpRemoteDir,
+};
+export type Env = typeof env;
 
 export const isDevelopment = env.NODE_ENV === 'development';
 export const isProduction = env.NODE_ENV === 'production';

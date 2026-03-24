@@ -37,13 +37,31 @@ class FtpService {
     const client = new ftp.Client();
     client.ftp.verbose = env.NODE_ENV === 'development';
 
-    await client.access({
-      host: env.FTP_HOST!,
-      port: env.FTP_PORT,
-      user: env.FTP_USER!,
-      password: env.FTP_PASSWORD!,
-      secure: env.FTP_SECURE, // Configure from .env
-    });
+    try {
+      await client.access({
+        host: env.FTP_HOST!,
+        port: env.FTP_PORT,
+        user: env.FTP_USER!,
+        password: env.FTP_PASSWORD!,
+        secure: env.FTP_SECURE,
+      });
+    } catch (error: any) {
+      const message = String(error?.message ?? 'Unknown FTP connection error');
+      const isAuthFailure = message.includes('530');
+
+      log.error('FTP connection failed', error, {
+        host: env.FTP_HOST,
+        port: env.FTP_PORT,
+        secure: env.FTP_SECURE,
+        userLength: env.FTP_USER?.length,
+        passwordLength: env.FTP_PASSWORD?.length,
+        hint: isAuthFailure
+          ? 'FTP authentication failed. Verify FTP_USER/FTP_PASSWORD and quote passwords containing # in .env.'
+          : undefined,
+      });
+
+      throw error;
+    }
 
     return client;
   }

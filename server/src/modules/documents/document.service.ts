@@ -1,11 +1,11 @@
-import { generateUUID } from '../../shared/utils/crypto';
-import {
-  NotFoundError,
-  BadRequestError,
-  ServiceUnavailableError,
-} from '../../shared/utils/api-error';
-import { log } from '../../shared/utils/logger';
 import { ftpService } from '../../shared/services/ftp.service';
+import {
+    BadRequestError,
+    NotFoundError,
+    ServiceUnavailableError,
+} from '../../shared/utils/api-error';
+import { generateUUID } from '../../shared/utils/crypto';
+import { log } from '../../shared/utils/logger';
 import { DocumentRepository, type DocumentRecord } from './document.repository';
 import type { DocumentType } from './document.schemas';
 
@@ -72,7 +72,7 @@ class DocumentService {
   async create(
     userId: string,
     input: CreateDocumentInput,
-    file: { buffer: Buffer; mimetype: string; originalname: string },
+    file: { buffer: Buffer; mimetype: string; originalname: string }
   ): Promise<DocumentSummary> {
     // Validate document type and vehicle association
     if (input.documentType === 'driving_license') {
@@ -85,17 +85,13 @@ class DocumentService {
       input.documentType === 'insurance'
     ) {
       if (!input.vehicleId) {
-        throw new BadRequestError(
-          'Vehicle documents (RC, PUC, Insurance) require vehicleId',
-        );
+        throw new BadRequestError('Vehicle documents (RC, PUC, Insurance) require vehicleId');
       }
     }
 
     // Validate file type
     if (!ftpService.isAllowedMimeType(file.mimetype)) {
-      throw new BadRequestError(
-        'Invalid file type. Allowed types: JPEG, PNG, WebP, PDF',
-      );
+      throw new BadRequestError('Invalid file type. Allowed types: JPEG, PNG, WebP, PDF');
     }
 
     // Validate file size
@@ -106,11 +102,7 @@ class DocumentService {
     // Upload file to FTP
     let uploadResult;
     try {
-      uploadResult = await ftpService.uploadBuffer(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
-      );
+      uploadResult = await ftpService.uploadBuffer(file.buffer, file.originalname, file.mimetype);
     } catch (error: any) {
       log.error('Document upload failed during FTP transfer', error, {
         userId,
@@ -118,7 +110,7 @@ class DocumentService {
       });
 
       throw new ServiceUnavailableError(
-        'Document upload is temporarily unavailable. Please try again shortly.',
+        'Document upload is temporarily unavailable. Please try again shortly.'
       );
     }
 
@@ -151,7 +143,7 @@ class DocumentService {
   async update(
     userId: string,
     documentId: string,
-    input: UpdateDocumentInput,
+    input: UpdateDocumentInput
   ): Promise<DocumentSummary> {
     const existing = await this.repository.findByIdAndUserId(documentId, userId);
     if (!existing) {
@@ -184,7 +176,7 @@ class DocumentService {
   async toggleVisibility(
     userId: string,
     documentId: string,
-    isVisible: boolean,
+    isVisible: boolean
   ): Promise<DocumentSummary> {
     const existing = await this.repository.findByIdAndUserId(documentId, userId);
     if (!existing) {

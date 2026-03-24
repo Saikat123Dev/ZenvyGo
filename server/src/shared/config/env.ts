@@ -38,7 +38,6 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().default(''),
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(20),
 
-
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_ACCESS_EXPIRY: z.string().default('1h'),
   JWT_REFRESH_EXPIRY: z.string().default('30d'),
@@ -92,7 +91,7 @@ const envSchema = z.object({
   }, z.boolean().default(false)),
   FTP_BASE_PATH: z.preprocess(
     (value) => normalizeOptionalString(value) ?? '/uploads/documents',
-    z.string(),
+    z.string()
   ),
   FTP_PUBLIC_URL: z.preprocess(normalizeOptionalString, z.string().optional()),
 });

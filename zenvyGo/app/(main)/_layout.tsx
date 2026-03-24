@@ -107,12 +107,6 @@ export default function MainTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="documents"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
         name="about"
         options={{
           href: null,

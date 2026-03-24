@@ -9,6 +9,7 @@ import { tagsModule } from './modules/tags';
 import { contactModule } from './modules/contact';
 import { alertsModule } from './modules/alerts';
 import { emergencyProfilesModule } from './modules/emergency-profiles';
+import { documentsModule } from './modules/documents';
 import { systemModule } from './modules/system';
 import { corsMiddleware } from './shared/middleware/cors.middleware';
 import { helmetMiddleware } from './shared/middleware/helmet.middleware';
@@ -30,6 +31,7 @@ const appModules: AppModule[] = [
   contactModule,
   alertsModule,
   emergencyProfilesModule,
+  documentsModule,
 ];
 
 export async function initializeApplication() {

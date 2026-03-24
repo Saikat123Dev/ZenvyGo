@@ -2,17 +2,20 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { Flashlight, QrCode, ScanLine, ShieldCheck } from 'lucide-react-native';
-import { Badge, Button, Input } from '@/components/ui';
+import { Flashlight, QrCode, ScanLine, ShieldCheck, FileText, X, ChevronRight, File } from 'lucide-react-native';
+import { Badge, Button, Input, Card } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type ContactSession, type ResolvedTag } from '@/lib/api';
@@ -42,6 +45,8 @@ export default function ScanScreen() {
   const [selectedChannel, setSelectedChannel] = useState<string>(CONTACT_CHANNEL_OPTIONS[0].value);
   const [requesterName, setRequesterName] = useState('');
   const [message, setMessage] = useState('');
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<{ name: string; fileUrl: string; type: string; expiresAt: string | null } | null>(null);
 
   // Refs for debouncing - using refs to avoid state update delays
   const lastScannedTokenRef = useRef<string | null>(null);
@@ -252,6 +257,65 @@ export default function ScanScreen() {
             </Animated.View>
           ) : resolvedTag ? (
             <Animated.View entering={FadeInDown.duration(300)}>
+              {/* Driver Profile Section */}
+              {resolvedTag.driverProfile && (
+                <View style={styles.driverProfileSection}>
+                  {resolvedTag.driverProfile.profilePhotoUrl && (
+                    <Image
+                      source={{ uri: resolvedTag.driverProfile.profilePhotoUrl }}
+                      style={styles.driverPhoto}
+                    />
+                  )}
+                  <Text style={[styles.driverName, { color: colors.text }]}>
+                    {resolvedTag.driverProfile.name || 'Driver'}
+                  </Text>
+                  <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
+                    {resolvedTag.plateNumber}
+                  </Text>
+
+                  {/* Driver Documents */}
+                  {resolvedTag.driverProfile.documents.length > 0 && (
+                    <View style={styles.documentsSection}>
+                      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+                        VERIFIED DOCUMENTS
+                      </Text>
+                      <Card padding="none" style={{ marginTop: spacing.default }}>
+                        {resolvedTag.driverProfile.documents.map((doc, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => {
+                              setPreviewDocument(doc);
+                              setPreviewModalVisible(true);
+                            }}
+                            style={[
+                              styles.docRow,
+                              idx < resolvedTag.driverProfile!.documents.length - 1 && {
+                                borderBottomWidth: 1,
+                                borderBottomColor: colors.border,
+                              },
+                            ]}
+                            activeOpacity={0.7}>
+                            <View style={[styles.docIconSmall, { backgroundColor: colors.primaryLighter }]}>
+                              <FileText size={18} color={colors.primary} />
+                            </View>
+                            <View style={styles.docInfoSmall}>
+                              <Text style={[styles.docNameSmall, { color: colors.text }]}>
+                                {doc.name}
+                              </Text>
+                              <Text style={[styles.docTypeSmall, { color: colors.textSecondary }]}>
+                                {doc.type}
+                                {doc.expiresAt && ` • Expires ${new Date(doc.expiresAt).toLocaleDateString()}`}
+                              </Text>
+                            </View>
+                            <ChevronRight size={16} color={colors.textMuted} />
+                          </TouchableOpacity>
+                        ))}
+                      </Card>
+                    </View>
+                  )}
+                </View>
+              )}
+
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
                 Contact owner of {resolvedTag.plateNumber}
               </Text>
@@ -363,6 +427,49 @@ export default function ScanScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* Document Preview Modal */}
+      <Modal
+        visible={previewModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPreviewModalVisible(false)}>
+        <View style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.previewCard, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={1}>
+                {previewDocument?.name}
+              </Text>
+              <TouchableOpacity onPress={() => setPreviewModalVisible(false)}>
+                <X size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            {previewDocument && (
+              <ScrollView style={styles.previewBody}>
+                {previewDocument.fileUrl.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                  <Image
+                    source={{ uri: previewDocument.fileUrl }}
+                    style={styles.previewImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.pdfPreview}>
+                    <File size={64} color={colors.primary} />
+                    <Text style={[styles.pdfName, { color: colors.text }]}>
+                      {previewDocument.name}
+                    </Text>
+                    <Button
+                      onPress={() => Linking.openURL(previewDocument.fileUrl)}
+                      style={{ marginTop: spacing.section }}>
+                      Open Document
+                    </Button>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -575,5 +682,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.default,
     marginBottom: spacing.large,
+  },
+  driverProfileSection: {
+    alignItems: 'center',
+    marginBottom: spacing.large * 1.5,
+  },
+  driverPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: spacing.component,
+  },
+  driverName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  vehicleInfo: {
+    fontSize: 16,
+    marginBottom: spacing.section,
+  },
+  documentsSection: {
+    width: '100%',
+    marginTop: spacing.section,
+  },
+  docRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.component,
+    paddingHorizontal: spacing.section,
+  },
+  docIconSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.component,
+  },
+  docInfoSmall: {
+    flex: 1,
+  },
+  docNameSmall: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  docTypeSmall: {
+    fontSize: 13,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  previewCard: {
+    flex: 1,
+    marginTop: spacing.large * 3,
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.card,
+    paddingVertical: spacing.section,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+  },
+  previewBody: {
+    flex: 1,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  pdfPreview: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.large,
+  },
+  pdfName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: spacing.section,
+    textAlign: 'center',
   },
 });

@@ -52,6 +52,26 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
+
+  // FTP Configuration for file uploads
+  FTP_HOST: z.string().optional(),
+  FTP_PORT: z.coerce.number().int().positive().default(21),
+  FTP_USER: z.string().optional(),
+  FTP_PASSWORD: z.string().optional(),
+  FTP_SECURE: z.preprocess((value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') {
+        return true;
+      }
+      if (normalized === 'false' || normalized === '0') {
+        return false;
+      }
+    }
+    return value;
+  }, z.boolean().default(false)),
+  FTP_BASE_PATH: z.string().default('/uploads/documents'),
+  FTP_PUBLIC_URL: z.string().optional(),
 });
 
 function validateEnv() {

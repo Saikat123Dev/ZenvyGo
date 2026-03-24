@@ -107,6 +107,38 @@ export interface EmergencyProfile {
   updatedAt: string;
 }
 
+export interface DriverDocument {
+  id: string;
+  userId: string;
+  vehicleId: string | null;
+  documentType: 'driving_license' | 'rc' | 'puc' | 'insurance' | 'other';
+  documentName: string;
+  documentNumber: string | null;
+  fileUrl: string;
+  fileType: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  status: 'pending' | 'verified' | 'rejected' | 'expired';
+  isVisibleToPassenger: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicDocumentView {
+  type: string;
+  name: string;
+  fileUrl: string;
+  expiresAt: string | null;
+}
+
+export interface PublicDriverProfile {
+  name: string | null;
+  profilePhotoUrl: string | null;
+  documents: PublicDocumentView[];
+}
+
 export interface ResolvedTag {
   tagId: string;
   vehicleId: string;
@@ -115,6 +147,7 @@ export interface ResolvedTag {
   state: 'generated' | 'activated' | 'suspended' | 'retired';
   allowedReasonCodes: string[];
   allowedChannels: string[];
+  driverProfile?: PublicDriverProfile;
 }
 
 interface VehiclePayload {
@@ -440,6 +473,72 @@ class ApiService {
     message?: string | null;
   }): Promise<ApiResponse<ContactSession>> {
     return this.post<ContactSession>('/public/contact-sessions', input);
+  }
+
+  // Document Management
+  async listDocuments(): Promise<ApiResponse<DriverDocument[]>> {
+    return this.get<DriverDocument[]>('/documents');
+  }
+
+  async uploadDocument(
+    documentData: {
+      vehicleId?: string;
+      documentType: string;
+      documentName: string;
+      documentNumber?: string;
+      issuedAt?: string;
+      expiresAt?: string;
+      isVisibleToPassenger?: boolean;
+    },
+    fileUri: string,
+    fileName: string,
+    mimeType: string,
+  ): Promise<ApiResponse<DriverDocument>> {
+    const formData = new FormData();
+
+    formData.append('file', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+
+    Object.entries(documentData).forEach(([key, value]) => {
+      if (value !== undefined) {
+        formData.append(key, String(value));
+      }
+    });
+
+    return this.request<DriverDocument>('/documents', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+  }
+
+  async updateDocument(
+    documentId: string,
+    updates: {
+      documentName?: string;
+      documentNumber?: string;
+      expiresAt?: string;
+    },
+  ): Promise<ApiResponse<DriverDocument>> {
+    return this.patch<DriverDocument>(`/documents/${documentId}`, updates);
+  }
+
+  async deleteDocument(documentId: string): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/documents/${documentId}`);
+  }
+
+  async toggleDocumentVisibility(
+    documentId: string,
+    isVisible: boolean,
+  ): Promise<ApiResponse<DriverDocument>> {
+    return this.patch<DriverDocument>(`/documents/${documentId}/visibility`, {
+      isVisibleToPassenger: isVisible,
+    });
   }
 
   // Generic GET request

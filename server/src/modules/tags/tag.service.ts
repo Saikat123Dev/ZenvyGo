@@ -6,6 +6,8 @@ import { REDIS_TTL } from '../../shared/cache/redis.client';
 import { NotFoundError } from '../../shared/utils/api-error';
 import { generateToken, generateUUID } from '../../shared/utils/crypto';
 import { vehicleService } from '../vehicles/vehicle.service';
+import { documentService, type PublicDocumentView } from '../documents/document.service';
+import { userRepository } from '../users/user.repository';
 import { TagRepository, type TagRecord, type TagWithOwnerRecord } from './tag.repository';
 
 export interface TagSummary {
@@ -28,6 +30,11 @@ export interface ResolvedTag {
   state: 'generated' | 'activated' | 'suspended' | 'retired';
   allowedReasonCodes: string[];
   allowedChannels: string[];
+  driverProfile?: {
+    name: string | null;
+    profilePhotoUrl: string | null;
+    documents: PublicDocumentView[];
+  };
 }
 
 class TagService {
@@ -112,7 +119,7 @@ class TagService {
       throw new NotFoundError('Tag not found');
     }
 
-    const resolved = this.toResolvedTag(tag);
+    const resolved = await this.toResolvedTag(tag);
 
     // Cache for 15 minutes
     await cacheService.set('CACHE', cacheKey, resolved, REDIS_TTL.CACHE_MEDIUM);
@@ -140,7 +147,18 @@ class TagService {
     };
   }
 
-  private toResolvedTag(record: TagWithOwnerRecord): ResolvedTag {
+  private async toResolvedTag(record: TagWithOwnerRecord): Promise<ResolvedTag> {
+    // Fetch driver info
+    const user = await userRepository.findById(record.owner_id);
+
+    // Fetch visible documents for driver (user-level and vehicle-level)
+    const [userDocuments, vehicleDocuments] = await Promise.all([
+      documentService.getVisibleDocumentsForUser(record.owner_id),
+      documentService.getVisibleDocumentsForVehicle(record.vehicle_id),
+    ]);
+
+    const allVisibleDocuments = [...userDocuments, ...vehicleDocuments];
+
     return {
       tagId: record.id,
       vehicleId: record.vehicle_id,
@@ -157,6 +175,11 @@ class TagService {
         'urgent_personal_reason',
       ],
       allowedChannels: ['call', 'sms', 'whatsapp', 'in_app'],
+      driverProfile: {
+        name: user?.name ?? null,
+        profilePhotoUrl: user?.profile_photo_url ?? null,
+        documents: allVisibleDocuments,
+      },
     };
   }
 }

@@ -266,6 +266,21 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.7}
+            onPress={() => router.push('/(main)/documents' as any)}
+            style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+            <View style={[styles.settingsIcon, { backgroundColor: colors.successBackground }]}>
+              <FileText size={20} color={colors.success} />
+            </View>
+            <View style={styles.settingsCopy}>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>My Documents</Text>
+              <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
+                Upload and manage driver documents
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.7}
             onPress={() => Alert.alert('Change Password', 'Password change feature coming soon.')}
             style={styles.settingsRowLast}>
             <View style={[styles.settingsIcon, { backgroundColor: colors.warningBackground }]}>

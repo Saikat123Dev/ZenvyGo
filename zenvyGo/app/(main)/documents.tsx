@@ -230,7 +230,7 @@ export default function DocumentsScreen() {
         vehicleId: selectedVehicle?.id,
         documentType: selectedDocType.value,
         documentName: documentName.trim(),
-        documentNumber: documentNumber.trim() || undefined, 
+        documentNumber: documentNumber.trim() || undefined,
         expiresAt: expiryDate || undefined,
         isVisibleToPassenger: isVisible,
       },

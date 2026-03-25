@@ -30,7 +30,7 @@ class FtpService {
   private checkConfiguration(): boolean {
     return !!(env.FTP_HOST && env.FTP_USER && env.FTP_PASSWORD && env.FTP_PUBLIC_URL);
   }
-
+ 
   /**
    * Create a new FTP client connection
    */

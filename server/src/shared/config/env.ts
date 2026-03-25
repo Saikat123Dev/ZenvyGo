@@ -102,7 +102,7 @@ const envSchema = z.object({
     return value;
   }, z.boolean().default(false)),
   FTP_REMOTE_DIR: z.preprocess(
-    (value) => normalizeFtpRemoteDir(value) ?? '/uploads/documents',
+    (value) => normalizeFtpRemoteDir(value) ?? '/zenvygo',
     z.string()
   ),
   FTP_BASE_PATH: z.preprocess(normalizeFtpRemoteDir, z.string().optional()),
@@ -127,7 +127,7 @@ function validateEnv() {
 }
 
 const parsedEnv = validateEnv();
-const ftpRemoteDir = parsedEnv.FTP_REMOTE_DIR ?? parsedEnv.FTP_BASE_PATH ?? '/uploads/documents';
+const ftpRemoteDir = parsedEnv.FTP_REMOTE_DIR ?? parsedEnv.FTP_BASE_PATH ?? '/zenvygo';
 
 export const env = {
   ...parsedEnv,

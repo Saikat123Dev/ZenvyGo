@@ -6,17 +6,19 @@ import { Home, Car, QrCode, User, Bell } from 'lucide-react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors, spacing, componentHeights, shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTranslation } from 'react-i18next';
 
 export default function MainTabsLayout() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const isAndroid = Platform.OS === 'android';
-  const bottomInset = isAndroid ? Math.max(insets.bottom, spacing.default) : insets.bottom;
-  const tabBarHeight = componentHeights.tabBar + bottomInset;
+  const tabBarHeight = componentHeights.tabBar + (isAndroid ? 0 : insets.bottom);
 
   return (
     <Tabs
+      safeAreaInsets={isAndroid ? { bottom: 0 } : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.tabIconSelected,
@@ -25,10 +27,10 @@ export default function MainTabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.tabBackground,
           height: tabBarHeight,
-          paddingBottom: bottomInset,
+          paddingBottom: isAndroid ? spacing.tight : insets.bottom,
           paddingTop: spacing.tight,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: colors.tabBorder,
+          marginBottom: isAndroid ? insets.bottom : 0,
+          borderTopWidth: 0,
           ...Platform.select({
             ios: {
               ...shadows.default,
@@ -47,7 +49,7 @@ export default function MainTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('navigation.home'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <Home size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -58,7 +60,7 @@ export default function MainTabsLayout() {
       <Tabs.Screen
         name="vehicles"
         options={{
-          title: 'Vehicles',
+          title: t('navigation.vehicles'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <Car size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -69,7 +71,7 @@ export default function MainTabsLayout() {
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'Scan',
+          title: t('navigation.scan'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <QrCode size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -80,7 +82,7 @@ export default function MainTabsLayout() {
       <Tabs.Screen
         name="alerts"
         options={{
-          title: 'Alerts',
+          title: t('navigation.alerts'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <Bell size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -91,7 +93,7 @@ export default function MainTabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('navigation.profile'),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <User size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -145,13 +147,13 @@ interface TabIconProps {
   focused: boolean;
 }
 
-const TabIcon = React.memo(function TabIcon({ children, focused }: TabIconProps) {
+function TabIcon({ children, focused }: TabIconProps) {
   return (
     <View style={styles.tabIconContainer}>
       {children}
     </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
   tabIconContainer: {

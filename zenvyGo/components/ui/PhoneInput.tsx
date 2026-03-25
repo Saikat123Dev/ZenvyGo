@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginStart: 8,
     fontSize: 15,
   },
   countryItem: {
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   },
   countryFlag: {
     fontSize: 28,
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   countryInfo: {
     flex: 1,

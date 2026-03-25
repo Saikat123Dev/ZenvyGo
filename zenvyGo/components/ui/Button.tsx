@@ -58,7 +58,7 @@ export function Button({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
   };
 
   const handlePressOut = () => {
@@ -204,10 +204,10 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   iconLeft: {
-    marginRight: 8,
+    marginEnd: 8,
   },
   iconRight: {
-    marginLeft: 8,
+    marginStart: 8,
   },
 });
 

@@ -65,17 +65,12 @@ class AlertService {
       throw new NotFoundError('Alert not found');
     }
 
+    // Update in-place and invalidate cache (single write + cache clear)
     await this.repository.markRead(alertId, userId);
-
-    // Invalidate cache
     await this.invalidateUserCache(userId);
 
-    const updated = await this.repository.findByIdForUser(alertId, userId);
-    if (!updated) {
-      throw new Error('Failed to load alert');
-    }
-
-    return this.toAlert(updated);
+    // Return the already-fetched record with is_read flipped (avoids extra DB read)
+    return this.toAlert({ ...existing, is_read: 1, updated_at: new Date().toISOString() });
   }
 
   public async markAllRead(userId: string): Promise<void> {

@@ -35,6 +35,7 @@ import {
   User,
   X,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, Input } from '@/components/ui';
 import { Colors, ThemeColors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -43,7 +44,10 @@ import { LANGUAGE_OPTIONS } from '@/lib/domain';
 import { formatLanguage, maskEmail } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
-import { useProfileScreenData, useOpenSessions, useUnreadAlerts } from '@/store/app-store';
+import { useVehicles } from '@/hooks/use-vehicles';
+import { useTags } from '@/hooks/use-tags';
+import { useAlerts } from '@/hooks/use-alerts';
+import { useContactSessions } from '@/hooks/use-sessions';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -52,13 +56,19 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, finishAuthentication, signOut } = useAuth();
   const { themePreference, setThemePreference } = useThemePreference();
+  const { t, i18n } = useTranslation();
 
-  // Global store
-  const { vehicles, tags, isLoading, fetchAll } = useProfileScreenData();
-  const unreadAlerts = useUnreadAlerts();
-  const openSessions = useOpenSessions();
+  // TanStack Query hooks
+  const { data: vehicles = [], isLoading } = useVehicles();
+  const { data: tags = [] } = useTags();
+  const { data: alerts = [] } = useAlerts();
+  const { data: sessions = [] } = useContactSessions();
 
-  // Memoized activity summary from global store
+  // Derived state
+  const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead), [alerts]);
+  const openSessions = useMemo(() => sessions.filter((s) => s.status === 'initiated'), [sessions]);
+
+  // Memoized activity summary
   const activitySummary = useMemo(() => ({
     vehicles: vehicles.length,
     tags: tags.length,
@@ -76,10 +86,10 @@ export default function ProfileScreen() {
 
   const themeLabel =
     themePreference === 'system'
-      ? 'System'
+      ? t('profile.systemTheme')
       : themePreference === 'light'
-        ? 'Light'
-        : 'Dark';
+        ? t('profile.lightTheme')
+        : t('profile.darkTheme');
 
   const themeOptions: Array<{
     value: ThemePreference;
@@ -89,31 +99,33 @@ export default function ProfileScreen() {
   }> = [
     {
       value: 'system',
-      label: 'System',
-      description: 'Match device setting',
+      label: t('profile.systemTheme'),
+      description: t('profile.systemDesc'),
       icon: Monitor,
     },
     {
       value: 'light',
-      label: 'Light',
-      description: 'Bright and clean',
+      label: t('profile.lightTheme'),
+      description: t('profile.lightDesc'),
       icon: Sun,
     },
     {
       value: 'dark',
-      label: 'Dark',
-      description: 'Easy on the eyes',
+      label: t('profile.darkTheme'),
+      description: t('profile.darkDesc'),
       icon: Moon,
     },
   ];
 
-  // Load data on focus (with caching)
+  // Sync profile form on focus
   useFocusEffect(
     useCallback(() => {
       setProfileName(user?.name ?? '');
       setProfileLanguage(user?.language === 'ar' ? 'ar' : 'en');
-      fetchAll('silent');
-    }, [fetchAll, user?.language, user?.name]),
+      if (user?.language && user.language !== i18n.language) {
+        i18n.changeLanguage(user.language);
+      }
+    }, [user?.language, user?.name, i18n]),
   );
 
   const handleSaveProfile = async () => {
@@ -125,19 +137,20 @@ export default function ProfileScreen() {
     setSaving(false);
 
     if (!response.success || !response.data) {
-      Alert.alert('Unable to update profile', response.error || 'Please try again.');
+      Alert.alert(t('profile.profileUpdateError'), response.error || t('common.tryAgain'));
       return;
     }
 
+    i18n.changeLanguage(profileLanguage);
     finishAuthentication(response.data);
     setEditModalVisible(false);
   };
 
   const handleLogout = () => {
-    Alert.alert('Log out', 'This will clear the saved session on this device.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.logout'), t('profile.logoutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Log Out',
+        text: t('profile.logout'),
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -171,7 +184,7 @@ export default function ProfileScreen() {
                 <BadgeCheck size={18} color="#FFFFFF" fill="#0D9488" />
               </View>
             </View>
-            <Text style={styles.profileName}>{user?.name || 'Account Owner'}</Text>
+            <Text style={styles.profileName}>{user?.name || t('profile.accountOwner')}</Text>
             <Text style={styles.profileEmail}>{maskEmail(user?.email)}</Text>
             <View style={styles.profileBadges}>
               <View style={styles.profileBadge}>
@@ -193,7 +206,7 @@ export default function ProfileScreen() {
         {/* Activity Stats */}
         <Animated.View entering={FadeInDown.delay(200).springify()}>
           <Card style={styles.statsCard}>
-            <Text style={[styles.cardTitle, { color: colors.textMuted }]}>YOUR ACTIVITY</Text>
+            <Text style={[styles.cardTitle, { color: colors.textMuted }]}>{t('profile.activity')}</Text>
             {isLoading && vehicles.length === 0 ? (
               <View style={styles.statsLoading}>
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -205,28 +218,28 @@ export default function ProfileScreen() {
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {activitySummary.vehicles}
                   </Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Vehicles</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('profile.vehiclesLabel')}</Text>
                 </View>
                 <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
                   <Tag size={20} color={colors.success} />
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {activitySummary.tags}
                   </Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tags</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('profile.tagsLabel')}</Text>
                 </View>
                 <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
                   <Bell size={20} color={colors.warning} />
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {activitySummary.unreadAlerts}
                   </Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Unread</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('profile.unreadLabel')}</Text>
                 </View>
                 <View style={[styles.statItem, { backgroundColor: colors.surfaceSecondary }]}>
                   <MessageSquareText size={20} color={colors.info} />
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {activitySummary.openRequests}
                   </Text>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Requests</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('profile.requestsLabel')}</Text>
                 </View>
               </View>
             )}
@@ -236,7 +249,7 @@ export default function ProfileScreen() {
         {/* Account Section */}
         <Animated.View entering={FadeInDown.delay(300).springify()}>
           <Card style={styles.menuCard} padding="none">
-            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>ACCOUNT</Text>
+            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>{t('profile.account')}</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setEditModalVisible(true)}
@@ -245,9 +258,9 @@ export default function ProfileScreen() {
                 <PencilLine size={18} color={colors.primary} />
               </View>
               <View style={styles.menuCopy}>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>Edit Profile</Text>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{t('profile.editProfile')}</Text>
                 <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
-                  Name and language preference
+                  {t('profile.nameLanguage')}
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textMuted} />
@@ -266,9 +279,9 @@ export default function ProfileScreen() {
                 )}
               </View>
               <View style={styles.menuCopy}>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>Appearance</Text>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{t('profile.appearance')}</Text>
                 <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
-                  {themeLabel} theme selected
+                  {t('profile.themeSelected', { theme: themeLabel })}
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textMuted} />
@@ -281,9 +294,9 @@ export default function ProfileScreen() {
                 <Settings size={18} color={colors.info} />
               </View>
               <View style={styles.menuCopy}>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>Settings</Text>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{t('profile.settings')}</Text>
                 <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
-                  Notifications, privacy, security
+                  {t('profile.settingsHint')}
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textMuted} />
@@ -294,7 +307,7 @@ export default function ProfileScreen() {
         {/* Support Section */}
         <Animated.View entering={FadeInDown.delay(400).springify()}>
           <Card style={styles.menuCard} padding="none">
-            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>SUPPORT</Text>
+            <Text style={[styles.menuTitle, { color: colors.textMuted }]}>{t('profile.support')}</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => router.push('/(main)/help' as any)}
@@ -303,9 +316,9 @@ export default function ProfileScreen() {
                 <CircleHelp size={18} color={colors.success} />
               </View>
               <View style={styles.menuCopy}>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>Help & FAQ</Text>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{t('profile.helpFaq')}</Text>
                 <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
-                  Common questions answered
+                  {t('profile.helpFaqHint')}
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textMuted} />
@@ -318,9 +331,9 @@ export default function ProfileScreen() {
                 <Info size={18} color={colors.textSecondary} />
               </View>
               <View style={styles.menuCopy}>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>About ZenvyGo</Text>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{t('profile.about')}</Text>
                 <Text style={[styles.menuHint, { color: colors.textSecondary }]}>
-                  Version and app info
+                  {t('profile.aboutHint')}
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textMuted} />
@@ -335,7 +348,7 @@ export default function ProfileScreen() {
             onPress={handleLogout}
             activeOpacity={0.8}>
             <LogOut size={20} color={colors.danger} />
-            <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out</Text>
+            <Text style={[styles.logoutText, { color: colors.danger }]}>{t('profile.logout')}</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -343,7 +356,7 @@ export default function ProfileScreen() {
         <View style={styles.privacyNote}>
           <Shield size={14} color={colors.textMuted} />
           <Text style={[styles.privacyText, { color: colors.textMuted }]}>
-            Your data is encrypted and never shared with third parties
+            {t('profile.privacyNote')}
           </Text>
         </View>
       </ScrollView>
@@ -352,20 +365,20 @@ export default function ProfileScreen() {
         colors={colors}
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
-        title="Edit Profile"
-        subtitle="Keep your owner details current across the app."
+        title={t('profile.editProfile')}
+        subtitle={t('profile.editProfileDesc')}
         footer={
           <Button loading={saving} onPress={handleSaveProfile} fullWidth={false}>
-            Save Changes
+            {t('common.save')}
           </Button>
         }>
         <Input
-          label="Display Name"
+          label={t('profile.displayName')}
           value={profileName}
           onChangeText={setProfileName}
           placeholder="Ahmed Hassan"
         />
-        <Text style={[styles.modalSectionLabel, { color: colors.textMuted }]}>LANGUAGE</Text>
+        <Text style={[styles.modalSectionLabel, { color: colors.textMuted }]}>{t('profile.language')}</Text>
         <View style={styles.languageOptions}>
           {LANGUAGE_OPTIONS.map((option) => {
             const selected = profileLanguage === option.value;
@@ -402,8 +415,8 @@ export default function ProfileScreen() {
         colors={colors}
         visible={themeModalVisible}
         onClose={() => setThemeModalVisible(false)}
-        title="Appearance"
-        subtitle="Choose how ZenvyGo should look on this device."
+        title={t('profile.appearance')}
+        subtitle={t('profile.appearanceDesc')}
       >
         <View style={styles.themeOptions}>
           {themeOptions.map((option) => {
@@ -615,10 +628,12 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.component,
   },
   statItem: {
     flex: 1,
+    minWidth: '45%',
     borderRadius: borderRadius.lg,
     padding: spacing.component,
     alignItems: 'center',
@@ -664,7 +679,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   menuCopy: {
     flex: 1,

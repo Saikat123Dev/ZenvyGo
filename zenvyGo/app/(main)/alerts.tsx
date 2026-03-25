@@ -23,9 +23,10 @@ import {
 import { EmptyState } from '@/components/ui';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { apiService, type AlertItem } from '@/lib/api';
+import { type AlertItem } from '@/lib/api';
 import { formatDateLabel, formatRelativeTime } from '@/lib/format';
-import { useAlertsScreenData, useUnreadAlerts } from '@/store/app-store';
+import { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from '@/hooks/use-alerts';
+import { useTranslation } from 'react-i18next';
 
 interface AlertSection {
   title: string;
@@ -36,17 +37,15 @@ export default function AlertsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
-  // Global store
-  const { alerts, isLoading, isRefreshing, fetchAlerts, markAlertRead, markAllAlertsRead } = useAlertsScreenData();
-  const unreadAlerts = useUnreadAlerts();
+  // TanStack Query hooks
+  const { data: alerts = [], isLoading, isRefetching: isRefreshing, refetch: refetchAlerts } = useAlerts();
+  const markReadMutation = useMarkAlertRead();
+  const markAllReadMutation = useMarkAllAlertsRead();
 
-  // Load data on focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchAlerts();
-    }, [fetchAlerts]),
-  );
+  // Derived state
+  const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead), [alerts]);
 
   // Memoized sections
   const sections = useMemo(() => {
@@ -64,37 +63,15 @@ export default function AlertsScreen() {
     }, []);
   }, [alerts]);
 
-  const handleMarkRead = useCallback(async (alertItem: AlertItem) => {
-    if (alertItem.isRead) {
-      return;
-    }
+  const handleMarkRead = useCallback((alertItem: AlertItem) => {
+    if (alertItem.isRead) return;
+    markReadMutation.mutate(alertItem.id);
+  }, [markReadMutation]);
 
-    // Optimistic update
-    markAlertRead(alertItem.id);
-
-    try {
-      // API call in background
-      await apiService.markAlertRead(alertItem.id);
-    } catch {
-      // Revert optimism on error
-      fetchAlerts();
-    }
-  }, [markAlertRead, fetchAlerts]);
-
-  const handleMarkAllRead = useCallback(async () => {
+  const handleMarkAllRead = useCallback(() => {
     if (unreadAlerts.length === 0) return;
-
-    // Optimistic update
-    markAllAlertsRead();
-
-    // API call in background
-    try {
-      await apiService.markAllAlertsRead();
-    } catch {
-      // Revert in real app or silent fail, for now just fetch to refresh
-      fetchAlerts();
-    }
-  }, [unreadAlerts.length, markAllAlertsRead, fetchAlerts]);
+    markAllReadMutation.mutate();
+  }, [unreadAlerts.length, markAllReadMutation]);
 
   const renderItem = useCallback(({ item, index }: { item: AlertItem; index: number }) => (
     <Animated.View entering={FadeInDown.delay(Math.min(index * 50, 200)).springify()}>
@@ -152,7 +129,7 @@ export default function AlertsScreen() {
               styles.severityText,
               { color: item.severity === 'critical' ? colors.danger : colors.warning }
             ]}>
-              {item.severity === 'critical' ? 'Urgent' : 'Important'}
+              {item.severity === 'critical' ? t('alerts.urgent') : t('alerts.important')}
             </Text>
           </View>
         )}
@@ -183,16 +160,16 @@ export default function AlertsScreen() {
       {/* Gradient Header */}
       <LinearGradient
         colors={colorScheme === 'dark'
-          ? ['#F59E0B', '#0F172A']
-          : ['#F59E0B', '#FBBF24']}
+          ? ['#0070DE', '#0A2540'] // Deep premium gradient
+          : ['#00BAFF', '#0070DE']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + spacing.component }]}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Alerts</Text>
+            <Text style={styles.headerTitle}>{t('alerts.title')}</Text>
             <Text style={styles.headerSubtitle}>
-              {unreadAlerts.length} unread notification{unreadAlerts.length !== 1 ? 's' : ''}
+              {t('alerts.unread', { count: unreadAlerts.length })}
             </Text>
           </View>
           {unreadAlerts.length > 0 && (
@@ -200,7 +177,7 @@ export default function AlertsScreen() {
               onPress={handleMarkAllRead}
               style={styles.markAllButton}>
               <CheckCheck size={16} color="#FFFFFF" />
-              <Text style={styles.markAllText}>Mark All</Text>
+              <Text style={styles.markAllText}>{t('alerts.markAll')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -214,8 +191,8 @@ export default function AlertsScreen() {
         <View style={styles.emptyContainer}>
           <EmptyState
             icon={<BellOff size={60} color={colors.textMuted} strokeWidth={1.5} />}
-            title="No alerts yet"
-            description="You'll see activity here when someone scans your QR tag or sends a contact request."
+            title={t('alerts.noAlerts')}
+            description={t('alerts.noAlertsDesc')}
           />
         </View>
       ) : (
@@ -229,7 +206,7 @@ export default function AlertsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
-              onRefresh={fetchAlerts}
+              onRefresh={() => refetchAlerts()}
               tintColor={colors.primary}
             />
           }
@@ -371,7 +348,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   alertContent: {
     flex: 1,

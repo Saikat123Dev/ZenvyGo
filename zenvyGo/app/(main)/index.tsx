@@ -33,6 +33,7 @@ import {
   Tag,
   TrendingUp,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, EmptyState, SectionHeader } from '@/components/ui';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -45,13 +46,10 @@ import {
   getGreeting,
 } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
-import {
-  useActiveVehicles,
-  useActiveTags,
-  useHomeScreenData,
-  useOpenSessions,
-  useUnreadAlerts,
-} from '@/store/app-store';
+import { useVehicles } from '@/hooks/use-vehicles';
+import { useTags } from '@/hooks/use-tags';
+import { useAlerts } from '@/hooks/use-alerts';
+import { useContactSessions, useResolveSession } from '@/hooks/use-sessions';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -59,31 +57,36 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
-  // Global store with selectors
-  const { vehicles, alerts, sessions, isLoading, isRefreshing, error, fetchAll, updateSession } =
-    useHomeScreenData();
-  const activeVehicles = useActiveVehicles();
-  const activeTags = useActiveTags();
-  const unreadAlerts = useUnreadAlerts();
-  const openSessions = useOpenSessions();
+  // TanStack Query hooks
+  const { data: vehicles = [], isLoading: vehiclesLoading, isRefetching: vehiclesRefetching, refetch: refetchVehicles } = useVehicles();
+  const { data: tags = [] } = useTags();
+  const { data: alerts = [], refetch: refetchAlerts } = useAlerts();
+  const { data: sessions = [], isLoading: sessionsLoading, isRefetching: sessionsRefetching, refetch: refetchSessions } = useContactSessions();
+  const resolveSessionMutation = useResolveSession();
 
-  // Load data on focus (with caching)
-  useFocusEffect(
-    useCallback(() => {
-      fetchAll('silent');
-    }, [fetchAll]),
-  );
+  // Derived state
+  const isLoading = vehiclesLoading || sessionsLoading;
+  const isRefreshing = vehiclesRefetching || sessionsRefetching;
+  const activeVehicles = useMemo(() => vehicles.filter((v) => v.status === 'active'), [vehicles]);
+  const activeTags = useMemo(() => tags.filter((t) => t.state === 'activated'), [tags]);
+  const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead), [alerts]);
+  const openSessions = useMemo(() => sessions.filter((s) => s.status === 'initiated'), [sessions]);
 
-  const handleResolveSession = useCallback(async (sessionId: string) => {
-    const response = await apiService.resolveContactSession(sessionId);
-    if (!response.success || !response.data) {
-      Alert.alert('Unable to resolve request', response.error || 'Please try again.');
-      return;
-    }
+  const handleRefreshAll = useCallback(() => {
+    refetchVehicles();
+    refetchAlerts();
+    refetchSessions();
+  }, [refetchVehicles, refetchAlerts, refetchSessions]);
 
-    updateSession(response.data);
-  }, [updateSession]);
+  const handleResolveSession = useCallback((sessionId: string) => {
+    resolveSessionMutation.mutate(sessionId, {
+      onError: () => {
+        Alert.alert('Unable to resolve request', 'Please try again.');
+      },
+    });
+  }, [resolveSessionMutation]);
 
   // Memoized session list items
   const sessionListItems = useMemo(() => {
@@ -126,7 +129,7 @@ export default function HomeScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => fetchAll('refresh')}
+            onRefresh={handleRefreshAll}
             tintColor={colors.primary}
           />
         }>
@@ -137,7 +140,7 @@ export default function HomeScreen() {
               {getGreeting(user?.name)}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Your ZenvyGo command center
+              {t('home.greeting')}
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -177,27 +180,27 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.heroBadge}>
                   <Sparkles size={12} color="#FBBF24" />
-                  <Text style={styles.heroBadgeText}>Active</Text>
+                  <Text style={styles.heroBadgeText}>{t('home.active')}</Text>
                 </View>
               </View>
-              <Text style={styles.heroTitle}>Welcome to ZenvyGo</Text>
+              <Text style={styles.heroTitle}>{t('home.welcome')}</Text>
               <Text style={styles.heroDescription}>
-                Your vehicles are protected. QR tags handle contact requests while keeping your number private.
+                {t('home.welcomeDesc')}
               </Text>
               <View style={styles.heroStats}>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroStatValue}>{activeVehicles.length}</Text>
-                  <Text style={styles.heroStatLabel}>Vehicles</Text>
+                  <Text style={styles.heroStatLabel}>{t('home.vehicles')}</Text>
                 </View>
                 <View style={styles.heroStatDivider} />
                 <View style={styles.heroStat}>
                   <Text style={styles.heroStatValue}>{activeTags.length}</Text>
-                  <Text style={styles.heroStatLabel}>Active Tags</Text>
+                  <Text style={styles.heroStatLabel}>{t('home.activeTags')}</Text>
                 </View>
                 <View style={styles.heroStatDivider} />
                 <View style={styles.heroStat}>
                   <Text style={styles.heroStatValue}>{openSessions.length}</Text>
-                  <Text style={styles.heroStatLabel}>Requests</Text>
+                  <Text style={styles.heroStatLabel}>{t('home.requests')}</Text>
                 </View>
               </View>
             </View>
@@ -212,7 +215,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statsRow}>
           <AnimatedStatCard
             icon={<Car size={22} color={colors.primary} />}
-            label="Vehicles"
+            label={t('home.vehicles')}
             value={String(activeVehicles.length)}
             trend={activeVehicles.length > 0 ? '+' : ''}
             colors={colors}
@@ -222,7 +225,7 @@ export default function HomeScreen() {
           />
           <AnimatedStatCard
             icon={<Tag size={22} color={colors.success} />}
-            label="Active Tags"
+            label={t('home.activeTags')}
             value={String(activeTags.length)}
             trend={activeTags.length > 0 ? '+' : ''}
             colors={colors}
@@ -232,7 +235,7 @@ export default function HomeScreen() {
           />
           <AnimatedStatCard
             icon={<MessageSquareWarning size={22} color={colors.warning} />}
-            label="Requests"
+            label={t('home.requests')}
             value={String(openSessions.length)}
             trend={openSessions.length > 0 ? '!' : ''}
             colors={colors}
@@ -242,25 +245,17 @@ export default function HomeScreen() {
           />
         </Animated.View>
 
-        {error ? (
-          <Card style={styles.errorCard}>
-            <Text style={[styles.errorTitle, { color: colors.danger }]}>{error}</Text>
-            <Text style={[styles.errorCopy, { color: colors.textSecondary }]}>
-              Pull to refresh or try again in a moment.
-            </Text>
-          </Card>
-        ) : null}
 
         <SectionHeader
-          title="Open Requests"
-          actionLabel={openSessions.length > 0 ? 'Refresh' : undefined}
-          onActionPress={() => fetchAll('refresh')}
+          title={t('home.openRequests')}
+          actionLabel={openSessions.length > 0 ? t('common.refresh') : undefined}
+          onActionPress={handleRefreshAll}
         />
         {openSessions.length === 0 ? (
           <EmptyState
             icon={<CircleAlert size={44} color={colors.textMuted} strokeWidth={1.5} />}
-            title="No pending contact requests"
-            description="When someone contacts you through a QR tag, the request will appear here."
+            title={t('home.noRequests')}
+            description={t('home.noRequestsDesc')}
           />
         ) : (
           sessionListItems.map(({ session, vehicle, requesterName }) => (
@@ -271,7 +266,7 @@ export default function HomeScreen() {
                     {formatReasonCode(session.reasonCode)}
                   </Text>
                   <Text style={[styles.listSubtitle, { color: colors.textSecondary }]}>
-                    {vehicle ? formatVehicleName(vehicle) : 'Vehicle request'} •{' '}
+                    {vehicle ? formatVehicleName(vehicle) : t('home.vehicleRequest')} •{' '}
                     {formatRelativeTime(session.createdAt)}
                   </Text>
                 </View>
@@ -279,7 +274,7 @@ export default function HomeScreen() {
               </View>
               {requesterName ? (
                 <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                  Requested by {requesterName}
+                  {t('home.requestedBy', { name: requesterName })}
                 </Text>
               ) : null}
               {session.message ? (
@@ -292,22 +287,22 @@ export default function HomeScreen() {
                 fullWidth={false}
                 style={styles.inlineButton}
                 onPress={() => handleResolveSession(session.id)}>
-                Mark Resolved
+                {t('home.markResolved')}
               </Button>
             </Card>
           ))
         )}
 
         <SectionHeader
-          title="Recent Alerts"
-          actionLabel={alerts.length > 0 ? 'View All' : undefined}
+          title={t('home.recentAlerts')}
+          actionLabel={alerts.length > 0 ? t('home.viewAll') : undefined}
           onActionPress={() => router.push('/(main)/alerts')}
         />
         {alerts.length === 0 ? (
           <EmptyState
             icon={<Bell size={44} color={colors.textMuted} strokeWidth={1.5} />}
-            title="No alerts yet"
-            description="Alerts will appear when a tag is used or when a contact request is created."
+            title={t('home.noAlerts')}
+            description={t('home.noAlertsDesc')}
           />
         ) : (
           alertListItems.map((alertItem) => (
@@ -337,19 +332,19 @@ export default function HomeScreen() {
           ))
         )}
 
-        <SectionHeader title="Quick Actions" />
+        <SectionHeader title={t('home.quickActions')} />
         <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actionsRow}>
           <QuickAction
-            label="Manage Vehicles"
-            description="Add, edit, generate QR"
+            label={t('home.manageVehicles')}
+            description={t('home.manageVehiclesDesc')}
             icon={<Car size={24} color={colors.primary} />}
             colors={colors}
             colorScheme={colorScheme}
             onPress={() => router.push('/(main)/vehicles')}
           />
           <QuickAction
-            label="Scan QR Code"
-            description="Contact a vehicle owner"
+            label={t('home.scanQr')}
+            description={t('home.scanQrDesc')}
             icon={<QrCode size={24} color={colors.info} />}
             colors={colors}
             colorScheme={colorScheme}
@@ -358,16 +353,16 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.actionsRow}>
           <QuickAction
-            label="View Alerts"
-            description={`${unreadAlerts.length} unread`}
+            label={t('home.viewAlerts')}
+            description={`${unreadAlerts.length} ${t('home.viewAlertsDesc')}`}
             icon={<Bell size={24} color={colors.warning} />}
             colors={colors}
             colorScheme={colorScheme}
             onPress={() => router.push('/(main)/alerts')}
           />
           <QuickAction
-            label="Settings"
-            description="Preferences & help"
+            label={t('home.settings')}
+            description={t('home.settingsDesc')}
             icon={<Settings size={24} color={colors.textSecondary} />}
             colors={colors}
             colorScheme={colorScheme}
@@ -505,7 +500,7 @@ const styles = StyleSheet.create({
   },
   headerCopy: {
     flex: 1,
-    paddingRight: spacing.section,
+    paddingEnd: spacing.section,
   },
   greeting: {
     fontSize: 28,
@@ -647,11 +642,13 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.component,
     marginBottom: spacing.default,
   },
   statCardTouchable: {
     flex: 1,
+    minWidth: 100,
   },
   statCard: {
     borderRadius: borderRadius.xl,
@@ -734,11 +731,13 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.component,
     marginBottom: spacing.component,
   },
   quickActionTouchable: {
     flex: 1,
+    minWidth: 150,
   },
   quickAction: {
     flexDirection: 'row',

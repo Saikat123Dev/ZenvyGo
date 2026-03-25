@@ -230,7 +230,7 @@ export default function DocumentsScreen() {
         vehicleId: selectedVehicle?.id,
         documentType: selectedDocType.value,
         documentName: documentName.trim(),
-        documentNumber: documentNumber.trim() || undefined,
+        documentNumber: documentNumber.trim() || undefined, 
         expiresAt: expiryDate || undefined,
         isVisibleToPassenger: isVisible,
       },
@@ -684,8 +684,8 @@ const DocumentCard = React.memo(function DocumentCard({
   return (
     <TouchableOpacity onPress={onPreview} style={[styles.docCard, { borderBottomColor: colors.border }]} activeOpacity={0.7}>
       <View style={styles.docMain}>
-        <View style={[styles.docIcon, { backgroundColor: colors.primaryLighter }]}>
-          <FileText size={20} color={colors.primary} />
+        <View style={[styles.docIcon, { backgroundColor: colors.surfaceSecondary }]}>
+          <FileText size={22} color={colors.primary} />
         </View>
         <View style={styles.docInfo}>
           <Text style={[styles.docName, { color: colors.text }]}>{document.documentName}</Text>
@@ -693,7 +693,7 @@ const DocumentCard = React.memo(function DocumentCard({
             {document.expiresAt ? `Expires: ${new Date(document.expiresAt).toLocaleDateString()}` : 'No expiry date'}
           </Text>
         </View>
-        <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'}>
+        <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'} style={styles.badgePremium}>
           {document.isVisibleToPassenger ? 'Visible' : 'Hidden'}
         </Badge>
       </View>
@@ -707,9 +707,9 @@ const DocumentCard = React.memo(function DocumentCard({
           {document.isVisibleToPassenger ? (
             <EyeOff size={16} color={colors.textSecondary} />
           ) : (
-            <Eye size={16} color={colors.textSecondary} />
+            <Eye size={16} color={colors.primary} />
           )}
-          <Text style={[styles.actionText, { color: colors.textSecondary }]}>
+          <Text style={[styles.actionText, { color: document.isVisibleToPassenger ? colors.textSecondary : colors.primary }]}>
             {document.isVisibleToPassenger ? 'Hide' : 'Show'}
           </Text>
         </TouchableOpacity>
@@ -740,32 +740,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.section,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.component,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   headerCopy: {
     flex: 1,
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
-    marginTop: 4,
+    marginTop: 2,
+    fontWeight: '500',
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -775,23 +781,29 @@ const styles = StyleSheet.create({
     gap: spacing.tight,
   },
   actionButtonHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   infoBanner: {
     gap: spacing.default,
   },
   infoBannerTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: -0.3,
   },
   infoBannerText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+    opacity: 0.85,
   },
   infoBannerCta: {
     alignSelf: 'flex-start',
@@ -799,12 +811,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.component,
     paddingVertical: spacing.default,
-    borderRadius: borderRadius.default,
+    borderRadius: borderRadius.lg,
     gap: spacing.tight,
   },
   infoBannerCtaText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
@@ -815,10 +827,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     marginTop: spacing.large,
     marginBottom: spacing.default,
     marginHorizontal: spacing.section,
@@ -826,16 +838,20 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.large * 2,
+    paddingHorizontal: spacing.large,
   },
   emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     marginTop: spacing.component,
+    letterSpacing: -0.3,
   },
   emptyHint: {
-    fontSize: 14,
+    fontSize: 15,
     marginTop: spacing.tight,
     textAlign: 'center',
+    lineHeight: 22,
+    opacity: 0.8,
   },
   qrSection: {
     alignItems: 'center',
@@ -844,95 +860,120 @@ const styles = StyleSheet.create({
   qrCodeContainer: {
     padding: spacing.section,
     backgroundColor: 'white',
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     marginBottom: spacing.section,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   qrHint: {
-    fontSize: 14,
+    fontSize: 15,
     textAlign: 'center',
     paddingHorizontal: spacing.section,
+    lineHeight: 22,
   },
   docCard: {
     paddingVertical: spacing.component,
-    paddingHorizontal: spacing.card,
-    borderBottomWidth: 1,
+    paddingHorizontal: spacing.section,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   docMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.default,
+    marginBottom: spacing.component,
   },
   docIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.lg,
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.component,
   },
   docInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   docName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
   docMeta: {
     fontSize: 14,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  badgePremium: {
+    borderRadius: 12,
+    paddingHorizontal: 8,
   },
   docActions: {
     flexDirection: 'row',
-    gap: spacing.default,
+    gap: spacing.component,
   },
   actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.default,
     paddingHorizontal: spacing.component,
-    borderRadius: borderRadius.default,
-    gap: 6,
+    borderRadius: 9999,
+    gap: 8,
   },
   actionText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalCard: {
-    borderTopLeftRadius: borderRadius['2xl'],
-    borderTopRightRadius: borderRadius['2xl'],
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.card,
-    paddingVertical: spacing.section,
-    borderBottomWidth: 1,
+    paddingHorizontal: spacing.large,
+    paddingVertical: spacing.large,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     flex: 1,
+    letterSpacing: -0.5,
   },
   modalBody: {
-    padding: spacing.card,
+    padding: spacing.large,
   },
   modalFooter: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.card,
+    paddingHorizontal: spacing.large,
     paddingVertical: spacing.section,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingBottom: Platform.OS === 'ios' ? spacing.large * 2 : spacing.section,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: spacing.default,
-    marginTop: spacing.section,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: spacing.tight,
+    marginTop: spacing.component,
+    letterSpacing: -0.3,
   },
   picker: {
     flexDirection: 'row',
@@ -940,19 +981,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.section,
     paddingVertical: spacing.component,
-    borderRadius: borderRadius.default,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
   },
   pickerText: {
     fontSize: 16,
+    fontWeight: '500',
     flex: 1,
   },
   visibilityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: spacing.section,
-    marginTop: spacing.section,
-    borderTopWidth: 1,
+    paddingTop: spacing.component,
+    marginTop: spacing.component,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   visibilityInfo: {
     flex: 1,
@@ -960,14 +1002,17 @@ const styles = StyleSheet.create({
   },
   visibilityLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
   visibilityHint: {
     fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.8,
   },
   fileSection: {
-    marginTop: spacing.section,
+    marginTop: spacing.component,
   },
   fileButtons: {
     flexDirection: 'row',
@@ -979,12 +1024,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.section,
-    borderRadius: borderRadius.default,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
+    borderStyle: 'dashed',
     gap: spacing.default,
   },
   fileButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   selectedFile: {
@@ -992,55 +1038,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.component,
     paddingHorizontal: spacing.section,
-    borderRadius: borderRadius.default,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     gap: spacing.default,
   },
   selectedFileName: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
   },
   pickerModal: {
-    margin: spacing.card,
-    borderRadius: borderRadius.xl,
+    margin: spacing.large,
+    borderRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   pickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    padding: spacing.card,
+    fontSize: 20,
+    fontWeight: '800',
+    padding: spacing.large,
+    letterSpacing: -0.4,
   },
   pickerOption: {
     paddingVertical: spacing.section,
-    paddingHorizontal: spacing.card,
-    borderBottomWidth: 1,
+    paddingHorizontal: spacing.large,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   pickerOptionText: {
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '500',
   },
   previewCard: {
     flex: 1,
-    marginTop: spacing.large * 2,
-    borderTopLeftRadius: borderRadius['2xl'],
-    borderTopRightRadius: borderRadius['2xl'],
+    marginTop: spacing.large * 3,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
   },
   previewBody: {
     flex: 1,
+    padding: spacing.large,
   },
   previewImage: {
     width: '100%',
     height: '100%',
+    borderRadius: borderRadius.lg,
   },
   pdfPreview: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.large,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderRadius: borderRadius.lg,
   },
   pdfName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     marginTop: spacing.section,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
 });

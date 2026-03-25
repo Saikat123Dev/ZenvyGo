@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   headerCopy: {
     flex: 1,

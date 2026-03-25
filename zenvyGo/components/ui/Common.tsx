@@ -129,7 +129,7 @@ export function ListItem({
       </View>
       {rightContent}
       {showChevron && (
-        <ChevronRight size={20} color={colors.textMuted} style={{ marginLeft: 8 }} />
+        <ChevronRight size={20} color={colors.textMuted} style={{ marginStart: 8 }} />
       )}
     </View>
   );
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   listItemContent: {
     flex: 1,

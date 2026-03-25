@@ -78,10 +78,17 @@ class VehicleService {
       ...input,
     });
 
-    // Invalidate list cache
+    // Invalidate list cache then fetch the created record (single DB read)
     await this.invalidateOwnerCache(ownerId);
 
-    return this.getOwnedVehicle(ownerId, vehicleId);
+    const record = await this.repository.findByIdAndOwner(vehicleId, ownerId);
+    if (!record) {
+      throw new NotFoundError('Vehicle not found after creation');
+    }
+
+    const vehicle = this.toVehicle(record);
+    await cacheService.cacheVehicle(`${ownerId}:${vehicleId}`, vehicle as unknown as object);
+    return vehicle;
   }
 
   public async update(
@@ -97,14 +104,27 @@ class VehicleService {
       status?: 'active' | 'archived';
     },
   ): Promise<Vehicle> {
-    await this.getOwnedVehicle(ownerId, vehicleId);
+    // Verify ownership (single read)
+    const existing = await this.repository.findByIdAndOwner(vehicleId, ownerId);
+    if (!existing) {
+      throw new NotFoundError('Vehicle not found');
+    }
+
     await this.repository.update(vehicleId, ownerId, input);
 
-    // Clear both individual and list cache
+    // Clear caches
     await cacheService.clearVehicleCache(`${ownerId}:${vehicleId}`);
     await this.invalidateOwnerCache(ownerId);
 
-    return this.getOwnedVehicle(ownerId, vehicleId);
+    // Fetch updated record (single read)
+    const record = await this.repository.findByIdAndOwner(vehicleId, ownerId);
+    if (!record) {
+      throw new NotFoundError('Vehicle not found after update');
+    }
+
+    const vehicle = this.toVehicle(record);
+    await cacheService.cacheVehicle(`${ownerId}:${vehicleId}`, vehicle as unknown as object);
+    return vehicle;
   }
 
   public async archive(ownerId: string, vehicleId: string): Promise<void> {

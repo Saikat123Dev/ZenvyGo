@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiService, type AuthUser } from '@/lib/api';
-import { useAppStore } from '@/store/app-store';
+import { queryClient } from '@/lib/query-client';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async signOut() {
         await apiService.logout();
-        useAppStore.getState().clearData();
+        queryClient.clear();
         setUser(null);
         setStatus('anonymous');
       },

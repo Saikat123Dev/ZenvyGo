@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 4,
-    marginRight: 8,
+    marginEnd: 8,
   },
   title: {
     fontSize: 18,

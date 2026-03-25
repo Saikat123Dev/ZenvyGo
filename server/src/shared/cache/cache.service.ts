@@ -9,21 +9,22 @@ class CacheService {
     data: T,
     ttl?: number,
   ): Promise<void> {
-    await redis.set(this.buildKey(prefix, key), data, ttl);
+    const fullKey = this.buildKey(prefix, key);
+    await redis.set(fullKey, data, ttl ?? this.getDefaultTTL(prefix));
   }
 
   public async get<T>(prefix: keyof typeof REDIS_PREFIXES, key: string): Promise<T | null> {
     const fullKey = this.buildKey(prefix, key);
-    const rawValue = await redis.get(fullKey);
+    const raw = await redis.get(fullKey);
 
-    if (rawValue === null) {
+    if (raw === null) {
       return null;
     }
 
     try {
-      return JSON.parse(rawValue) as T;
+      return JSON.parse(raw) as T;
     } catch {
-      return rawValue as T;
+      return raw as T;
     }
   }
 
@@ -75,6 +76,10 @@ class CacheService {
     await this.delete('VEHICLE', vehicleId);
   }
 
+  /**
+   * Clear all application cache keys across all prefixes.
+   * Uses SCAN-based pattern deletion (production-safe).
+   */
   public async clearAll(): Promise<void> {
     for (const prefix of ['CACHE', 'USER', 'VEHICLE'] as const) {
       await redis.clearPattern(`${REDIS_PREFIXES[prefix]}*`);

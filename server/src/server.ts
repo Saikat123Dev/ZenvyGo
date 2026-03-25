@@ -1,5 +1,6 @@
 import { env } from './shared/config/env';
 import { db } from './shared/database/connection';
+import { redis } from './shared/cache/redis.client';
 import { cacheCleanupScheduler } from './shared/cache/cache-cleanup.scheduler';
 import { runMigrations } from './shared/database/migrations';
 import { log } from './shared/utils/logger';
@@ -8,6 +9,10 @@ import { initializeApplication } from './app';
 
 async function bootstrap() {
   await runMigrations('up');
+
+  // Validate Redis connectivity before starting the server
+  await redis.connect();
+
   const app = await initializeApplication();
 
   const server = app.listen(env.PORT, () => {
@@ -20,12 +25,16 @@ async function bootstrap() {
     void ftpService.runStartupHealthCheck();
   });
 
+  // Keep-alive: prevent 502 errors behind reverse proxies (ALB/nginx default = 60s)
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+
   const shutdown = async (signal: string) => {
     log.info('Shutdown signal received', { signal });
     server.close(async () => {
       // Cleanup resources
       cacheCleanupScheduler.stop();
-      await Promise.allSettled([db.disconnect()]);
+      await Promise.allSettled([db.disconnect(), redis.disconnect()]);
       log.info('Server shutdown complete');
       process.exit(0);
     });

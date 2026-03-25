@@ -21,6 +21,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type ContactSession, type ResolvedTag } from '@/lib/api';
 import { CONTACT_CHANNEL_OPTIONS, CONTACT_REASON_OPTIONS } from '@/lib/domain';
 import { extractTagToken, formatChannel, formatReasonCode } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
 
 // Debounce interval to prevent rapid duplicate scans
 const SCAN_DEBOUNCE_MS = 1500;
@@ -31,6 +32,7 @@ export default function ScanScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [flashOn, setFlashOn] = useState(false);
@@ -56,7 +58,7 @@ export default function ScanScreen() {
   const handleResolve = useCallback(async (rawValue: string) => {
     const token = extractTagToken(rawValue);
     if (!token) {
-      setError('Scan a ZenvyGo QR code or paste the QR token/URL.');
+      setError(t('scan.scanError'));
       return;
     }
 
@@ -70,7 +72,7 @@ export default function ScanScreen() {
       if (!response.success || !response.data) {
         setResolvedTag(null);
         setActiveToken(null);
-        setError(response.error || 'This QR tag could not be resolved.');
+        setError(response.error || t('scan.tagResolveError'));
         return;
       }
 
@@ -133,7 +135,7 @@ export default function ScanScreen() {
       });
 
       if (!response.success || !response.data) {
-        Alert.alert('Unable to send request', response.error || 'Please try again.');
+        Alert.alert(t('scan.sendError'), response.error || t('common.tryAgain'));
         return;
       }
 
@@ -168,9 +170,9 @@ export default function ScanScreen() {
     <View style={[styles.container, { backgroundColor: '#03111F' }]}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.section }]}>
         <View>
-          <Text style={styles.headerTitle}>Scan ZenvyGo QR</Text>
+          <Text style={styles.headerTitle}>{t('scan.title')}</Text>
           <Text style={styles.headerSubtitle}>
-            Resolve a tag, choose a reason, and create a contact request.
+            {t('scan.subtitle')}
           </Text>
         </View>
         <TouchableOpacity
@@ -208,7 +210,7 @@ export default function ScanScreen() {
               {resolving && (
                 <View style={styles.scanningIndicator}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.scanningText}>Resolving...</Text>
+                  <Text style={styles.scanningText}>{t('scan.resolving')}</Text>
                 </View>
               )}
             </View>
@@ -218,18 +220,18 @@ export default function ScanScreen() {
           <Animated.View entering={FadeIn.duration(300)} style={styles.resolvedPlaceholder}>
             <ShieldCheck size={54} color="rgba(255,255,255,0.3)" strokeWidth={1.5} />
             <Text style={styles.resolvedPlaceholderText}>
-              {createdSession ? 'Request submitted' : 'Tag resolved'}
+              {createdSession ? t('scan.requestSubmitted') : t('scan.tagResolved')}
             </Text>
           </Animated.View>
         ) : (
           <View style={styles.permissionCard}>
             <QrCode size={54} color="#FFFFFF" strokeWidth={1.5} />
-            <Text style={styles.permissionTitle}>Camera permission required</Text>
+            <Text style={styles.permissionTitle}>{t('scan.cameraRequired')}</Text>
             <Text style={styles.permissionCopy}>
-              Grant camera access to scan QR tags directly, or paste the QR token/URL manually below.
+              {t('scan.cameraDesc')}
             </Text>
             <Button fullWidth={false} onPress={() => requestPermission()}>
-              Grant Camera Access
+              {t('scan.grantAccess')}
             </Button>
           </View>
         )}
@@ -245,15 +247,15 @@ export default function ScanScreen() {
               <View style={styles.successIcon}>
                 <ShieldCheck size={28} color={colors.success} />
               </View>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Request logged</Text>
+              <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.requestLogged')}</Text>
               <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                The owner request was created through the public contact flow.
+                {t('scan.requestLoggedDesc')}
               </Text>
               <View style={styles.metaChips}>
                 <Badge variant="warning">{formatReasonCode(createdSession.reasonCode)}</Badge>
                 <Badge variant="primary">{formatChannel(createdSession.requestedChannel)}</Badge>
               </View>
-              <Button onPress={resetFlow}>Scan Another Code</Button>
+              <Button onPress={resetFlow}>{t('scan.scanAnother')}</Button>
             </Animated.View>
           ) : resolvedTag ? (
             <Animated.View entering={FadeInDown.duration(300)}>
@@ -267,7 +269,7 @@ export default function ScanScreen() {
                     />
                   )}
                   <Text style={[styles.driverName, { color: colors.text }]}>
-                    {resolvedTag.driverProfile.name || 'Driver'}
+                    {resolvedTag.driverProfile.name || t('scan.driver')}
                   </Text>
                   <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
                     {resolvedTag.plateNumber}
@@ -277,7 +279,7 @@ export default function ScanScreen() {
                   {resolvedTag.driverProfile.documents.length > 0 && (
                     <View style={styles.documentsSection}>
                       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-                        VERIFIED DOCUMENTS
+                        {t('scan.verifiedDocuments')}
                       </Text>
                       <Card padding="none" style={{ marginTop: spacing.default }}>
                         {resolvedTag.driverProfile.documents.map((doc, idx) => (
@@ -317,13 +319,13 @@ export default function ScanScreen() {
               )}
 
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                Contact owner of {resolvedTag.plateNumber}
+                {t('scan.contactOwner', { plate: resolvedTag.plateNumber })}
               </Text>
               <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                Choose the reason and contact channel. The owner never sees your personal number directly.
+                {t('scan.contactDesc')}
               </Text>
 
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>REASON</Text>
+              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.reason')}</Text>
               <View style={styles.optionWrap}>
                 {CONTACT_REASON_OPTIONS.filter((option) =>
                   resolvedTag.allowedReasonCodes.includes(option.value),
@@ -353,7 +355,7 @@ export default function ScanScreen() {
                 })}
               </View>
 
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>CHANNEL</Text>
+              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.channel')}</Text>
               <View style={styles.optionWrap}>
                 {CONTACT_CHANNEL_OPTIONS.filter((option) =>
                   resolvedTag.allowedChannels.includes(option.value),
@@ -384,35 +386,35 @@ export default function ScanScreen() {
               </View>
 
               <Input
-                label="Your Name"
+                label={t('scan.yourName')}
                 value={requesterName}
                 onChangeText={setRequesterName}
-                placeholder="Parking attendant, guard, bystander"
+                placeholder={t('scan.namePlaceholder')}
               />
               <Input
-                label="Optional Message"
+                label={t('scan.optionalMessage')}
                 value={message}
                 onChangeText={setMessage}
-                placeholder="A short note for the owner"
+                placeholder={t('scan.messagePlaceholder')}
               />
 
               <View style={styles.formActions}>
                 <Button variant="outline" fullWidth={false} onPress={resetFlow}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button fullWidth={false} loading={submitting} onPress={handleSubmitRequest}>
-                  Send Request
+                  {t('scan.sendRequest')}
                 </Button>
               </View>
             </Animated.View>
           ) : (
             <View>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Ready to scan</Text>
+              <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.readyToScan')}</Text>
               <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                Scan the windshield QR sticker or paste the QR URL/token manually for testing.
+                {t('scan.readyScanDesc')}
               </Text>
               <Input
-                label="Manual Token / URL"
+                label={t('scan.manualToken')}
                 value={manualValue}
                 onChangeText={setManualValue}
                 placeholder="https://.../t/your-token or raw token"
@@ -421,7 +423,7 @@ export default function ScanScreen() {
                 <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
               ) : null}
               <Button loading={resolving} onPress={() => handleResolve(manualValue)}>
-                Resolve Tag
+                {t('scan.resolveTag')}
               </Button>
             </View>
           )}
@@ -461,7 +463,7 @@ export default function ScanScreen() {
                     <Button
                       onPress={() => Linking.openURL(previewDocument.fileUrl)}
                       style={{ marginTop: spacing.section }}>
-                      Open Document
+                      {t('scan.openDocument')}
                     </Button>
                   </View>
                 )}
@@ -622,6 +624,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius['2xl'],
     borderTopRightRadius: borderRadius['2xl'],
     minHeight: 320,
+    maxHeight: '45%',
   },
   sheetContent: {
     paddingHorizontal: spacing.card,
@@ -718,7 +721,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   docInfoSmall: {
     flex: 1,

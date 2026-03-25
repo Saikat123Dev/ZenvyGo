@@ -10,9 +10,11 @@ import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import '@/lib/i18n';
 import { OtaUpdateController } from '@/components/updates/OtaUpdateController';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { ThemeProvider as AppThemeProvider } from '@/providers/ThemeProvider';
+import { QueryProvider } from '@/providers/QueryProvider';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -50,11 +52,13 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AppThemeProvider>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </AppThemeProvider>
+    <QueryProvider>
+      <AppThemeProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </AppThemeProvider>
+    </QueryProvider>
   );
 }
 

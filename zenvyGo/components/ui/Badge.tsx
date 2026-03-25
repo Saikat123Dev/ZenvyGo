@@ -110,13 +110,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6,
+    marginEnd: 6,
   },
   dotSmall: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    marginRight: 4,
+    marginEnd: 4,
   },
   text: {
     fontWeight: '500',

@@ -50,6 +50,10 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().default(''),
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(20),
 
+  // Upstash Redis
+  REDIS_URL: z.string().url('Upstash Redis REST URL is required'),
+  REDIS_TOKEN: z.string().min(1, 'Upstash Redis REST token is required'),
+
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_ACCESS_EXPIRY: z.string().default('1h'),
   JWT_REFRESH_EXPIRY: z.string().default('30d'),

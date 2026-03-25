@@ -3,90 +3,82 @@
  * A professional, lightweight design system for React Native with NativeWind
  */
 
-// Brand Blue Scale
+// Brand Blue Scale (Premium Electric Cyan & Deep Navy)
 export const brand: Record<number, string> = {
-  50: '#EFF6FF',
-  100: '#DBEAFE',
-  200: '#BFDBFE',
-  300: '#93C5FD',
-  400: '#60A5FA',
-  500: '#3B82F6',
-  600: '#2563EB',
-  700: '#1D4ED8',
-  800: '#1E40AF',
-  900: '#1E3A8A',
+  50: '#F0FBFF',
+  100: '#E0F8FF',
+  200: '#BAEFFF',
+  300: '#7CE0FF',
+  400: '#00F0FF', // neon cyan light
+  500: '#00E5FF', // vibrant neon cyan
+  600: '#00D1FF',
+  700: '#0070DE',
+  800: '#0058B6',
+  900: '#0A2540',  // deep sophisticated navy
 };
 
-// Slate/Neutral Scale
+// Slate/Neutral Scale (Refined Aesthetic Dark Mode)
 export const slate: Record<number, string> = {
-  50: '#F8FAFC',
-  100: '#F1F5F9',
-  200: '#E2E8F0',
-  300: '#CBD5E1',
-  400: '#94A3B8',
-  500: '#64748B',
-  600: '#475569',
-  700: '#334155',
-  800: '#1E293B',
-  900: '#0F172A',
+  50: '#FAFAFC',
+  100: '#F3F4F7',
+  200: '#E4E6EB',
+  300: '#C9CDD4',
+  400: '#9CA3AF',
+  500: '#6B7280',
+  600: '#52525B',
+  700: '#3F3F46',
+  800: '#27272A',
+  900: '#18181B',
+  950: '#000000',  // pure black
 };
 
 // Semantic Colors
 export const semantic = {
-  success: '#0D9488',
-  successLight: '#CCFBF1',
-  successDark: '#0F766E',
+  success: '#10B981',
+  successLight: '#D1FAE5',
+  successDark: '#047857',
   warning: '#F59E0B',
   warningLight: '#FEF3C7',
-  warningDark: '#D97706',
-  danger: '#E11D48',
-  dangerLight: '#FFE4E6',
-  dangerDark: '#BE123C',
-  info: '#0EA5E9',
-  infoLight: '#E0F2FE',
-  infoDark: '#0284C7',
+  warningDark: '#B45309',
+  danger: '#EF4444',
+  dangerLight: '#FEE2E2',
+  dangerDark: '#B91C1C',
+  info: '#3B82F6',
+  infoLight: '#DBEAFE',
+  infoDark: '#1D4ED8',
 };
 
 // Theme Colors interface
 export interface ThemeColors {
-  // Background colors
   background: string;
   backgroundSecondary: string;
   surface: string;
   surfaceSecondary: string;
-  // Text colors
   text: string;
   textSecondary: string;
   textMuted: string;
   textInverse: string;
-  // Primary/Brand
   primary: string;
   primaryLight: string;
   primaryLighter: string;
   primaryDark: string;
-  // Borders
   border: string;
   borderLight: string;
   borderFocus: string;
-  // Tab bar
   tabIconDefault: string;
   tabIconSelected: string;
   tabBackground: string;
   tabBorder: string;
-  // Header
   headerBackground: string;
   headerText: string;
-  // Cards
   cardBackground: string;
   cardBorder: string;
-  // Inputs
   inputBackground: string;
   inputBorder: string;
   inputBorderFocus: string;
   inputPlaceholder: string;
   inputError: string;
   inputErrorBackground: string;
-  // Buttons
   buttonPrimary: string;
   buttonPrimaryText: string;
   buttonSecondary: string;
@@ -96,9 +88,7 @@ export interface ThemeColors {
   buttonDangerText: string;
   buttonDisabled: string;
   buttonDisabledText: string;
-  // Tint
   tint: string;
-  // Semantic
   success: string;
   successBackground: string;
   warning: string;
@@ -107,12 +97,10 @@ export interface ThemeColors {
   dangerBackground: string;
   info: string;
   infoBackground: string;
-  // Alert specific
   alertUnreadBackground: string;
   alertUnreadBorder: string;
   alertReadBackground: string;
   alertReadBorder: string;
-  // Overlays
   overlay: string;
   overlayLight: string;
 }
@@ -120,66 +108,45 @@ export interface ThemeColors {
 // Theme Colors for Light/Dark mode
 export const Colors: { light: ThemeColors; dark: ThemeColors } = {
   light: {
-    // Background colors
-    background: slate[100],
-    backgroundSecondary: slate[50],
+    background: '#F9FAFB',
+    backgroundSecondary: '#FFFFFF',
     surface: '#FFFFFF',
-    surfaceSecondary: slate[50],
-
-    // Text colors
-    text: slate[900],
-    textSecondary: slate[600],
-    textMuted: slate[400],
+    surfaceSecondary: '#F3F4F6',
+    text: '#111827',
+    textSecondary: '#4B5563',
+    textMuted: '#9CA3AF',
     textInverse: '#FFFFFF',
-
-    // Primary/Brand
-    primary: brand[900],
-    primaryLight: brand[500],
-    primaryLighter: brand[100],
+    primary: brand[600],
+    primaryLight: brand[400],
+    primaryLighter: brand[50],
     primaryDark: brand[800],
-
-    // Borders
-    border: slate[200],
-    borderLight: slate[100],
+    border: '#E5E7EB',
+    borderLight: '#F3F4F6',
     borderFocus: brand[500],
-
-    // Tab bar
-    tabIconDefault: slate[400],
+    tabIconDefault: '#9CA3AF',
     tabIconSelected: brand[600],
     tabBackground: '#FFFFFF',
-    tabBorder: slate[100],
-
-    // Header
+    tabBorder: '#E5E7EB',
     headerBackground: '#FFFFFF',
-    headerText: slate[900],
-
-    // Cards
+    headerText: '#111827',
     cardBackground: '#FFFFFF',
-    cardBorder: slate[100],
-
-    // Inputs
-    inputBackground: '#FFFFFF',
-    inputBorder: slate[300],
+    cardBorder: 'rgba(0,0,0,0.05)',
+    inputBackground: '#F9FAFB',
+    inputBorder: '#D1D5DB',
     inputBorderFocus: brand[500],
-    inputPlaceholder: slate[400],
+    inputPlaceholder: '#9CA3AF',
     inputError: semantic.danger,
-    inputErrorBackground: '#FFF1F2',
-
-    // Buttons
-    buttonPrimary: brand[900],
+    inputErrorBackground: semantic.dangerLight,
+    buttonPrimary: brand[600],
     buttonPrimaryText: '#FFFFFF',
-    buttonSecondary: brand[100],
-    buttonSecondaryText: brand[900],
-    buttonSecondaryBorder: brand[200],
+    buttonSecondary: '#F3F4F6',
+    buttonSecondaryText: '#111827',
+    buttonSecondaryBorder: '#E5E7EB',
     buttonDanger: semantic.danger,
     buttonDangerText: '#FFFFFF',
-    buttonDisabled: slate[200],
-    buttonDisabledText: slate[400],
-
-    // Tint
+    buttonDisabled: '#E5E7EB',
+    buttonDisabledText: '#9CA3AF',
     tint: brand[600],
-
-    // Semantic
     success: semantic.success,
     successBackground: semantic.successLight,
     warning: semantic.warning,
@@ -188,111 +155,82 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
     dangerBackground: semantic.dangerLight,
     info: semantic.info,
     infoBackground: semantic.infoLight,
-
-    // Alert specific
     alertUnreadBackground: brand[50],
     alertUnreadBorder: brand[200],
     alertReadBackground: '#FFFFFF',
-    alertReadBorder: slate[100],
-
-    // Overlays
-    overlay: 'rgba(0, 0, 0, 0.5)',
-    overlayLight: 'rgba(0, 0, 0, 0.25)',
+    alertReadBorder: '#E5E7EB',
+    overlay: 'rgba(0, 0, 0, 0.4)',
+    overlayLight: 'rgba(0, 0, 0, 0.15)',
   },
   dark: {
-    // Background colors
-    background: slate[900],
-    backgroundSecondary: '#020617',
-    surface: slate[800],
-    surfaceSecondary: slate[700],
-
-    // Text colors
-    text: slate[50],
-    textSecondary: slate[300],
-    textMuted: slate[500],
-    textInverse: slate[900],
-
-    // Primary/Brand
-    primary: brand[500],
+    background: '#000000', // OLED black
+    backgroundSecondary: '#090A0C', // Deep charcoal
+    surface: slate[900], // Solid deep gray
+    surfaceSecondary: slate[800], // Solid mid-dark gray
+    text: '#FFFFFF',
+    textSecondary: '#A1A1AA',
+    textMuted: '#71717A',
+    textInverse: '#000000',
+    primary: brand[500], // Neon cyan focus point
     primaryLight: brand[400],
-    primaryLighter: brand[900],
+    primaryLighter: slate[800], // Solid instead of translucent cyan
     primaryDark: brand[600],
-
-    // Borders
-    border: slate[700],
-    borderLight: slate[800],
+    border: slate[800], // Solid border
+    borderLight: slate[900], 
     borderFocus: brand[400],
-
-    // Tab bar
-    tabIconDefault: slate[500],
-    tabIconSelected: brand[400],
-    tabBackground: slate[800],
-    tabBorder: slate[700],
-
-    // Header
-    headerBackground: slate[800],
-    headerText: slate[50],
-
-    // Cards
-    cardBackground: slate[800],
-    cardBorder: slate[700],
-
-    // Inputs
-    inputBackground: slate[800],
-    inputBorder: slate[600],
-    inputBorderFocus: brand[400],
-    inputPlaceholder: slate[500],
+    tabIconDefault: '#71717A',
+    tabIconSelected: brand[500],
+    tabBackground: '#000000', // Solid background 
+    tabBorder: slate[800],
+    headerBackground: '#000000',
+    headerText: '#FFFFFF',
+    cardBackground: slate[900], // Solid cards
+    cardBorder: slate[800],
+    inputBackground: slate[900], // Solid inputs
+    inputBorder: slate[700],
+    inputBorderFocus: brand[500],
+    inputPlaceholder: '#71717A',
     inputError: semantic.danger,
-    inputErrorBackground: '#4C0519',
-
-    // Buttons
+    inputErrorBackground: slate[900],
     buttonPrimary: brand[500],
-    buttonPrimaryText: '#FFFFFF',
-    buttonSecondary: brand[900],
-    buttonSecondaryText: brand[300],
-    buttonSecondaryBorder: brand[700],
+    buttonPrimaryText: '#000000', // high contrast neon
+    buttonSecondary: slate[800],
+    buttonSecondaryText: '#FFFFFF',
+    buttonSecondaryBorder: slate[700],
     buttonDanger: semantic.danger,
     buttonDangerText: '#FFFFFF',
-    buttonDisabled: slate[700],
-    buttonDisabledText: slate[500],
-
-    // Tint
-    tint: brand[400],
-
-    // Semantic
+    buttonDisabled: slate[800],
+    buttonDisabledText: '#71717A',
+    tint: brand[500],
     success: semantic.success,
-    successBackground: '#042F2E',
+    successBackground: slate[900],
     warning: semantic.warning,
-    warningBackground: '#451A03',
+    warningBackground: slate[900],
     danger: semantic.danger,
-    dangerBackground: '#4C0519',
+    dangerBackground: slate[900],
     info: semantic.info,
-    infoBackground: '#082F49',
-
-    // Alert specific
-    alertUnreadBackground: brand[900],
-    alertUnreadBorder: brand[700],
-    alertReadBackground: slate[800],
-    alertReadBorder: slate[700],
-
-    // Overlays
-    overlay: 'rgba(0, 0, 0, 0.7)',
-    overlayLight: 'rgba(0, 0, 0, 0.5)',
+    infoBackground: slate[900],
+    alertUnreadBackground: slate[800],
+    alertUnreadBorder: slate[700],
+    alertReadBackground: slate[900],
+    alertReadBorder: slate[800],
+    overlay: 'rgba(0, 0, 0, 0.85)', // Keep dimming for modals
+    overlayLight: 'rgba(0, 0, 0, 0.7)',
   },
 };
 
 // Typography utilities for NativeWind
 export const typography = {
-  display: 'text-[32px] leading-[40px] font-bold tracking-tight',
-  h1: 'text-[28px] leading-[36px] font-bold tracking-tight',
-  h2: 'text-[24px] leading-[32px] font-semibold tracking-tight',
-  h3: 'text-[20px] leading-[28px] font-semibold',
-  h4: 'text-[18px] leading-[26px] font-semibold',
-  bodyLarge: 'text-[17px] leading-[26px]',
-  body: 'text-[15px] leading-[24px]',
-  bodySmall: 'text-[13px] leading-[20px]',
-  caption: 'text-[12px] leading-[16px]',
-  overline: 'text-[11px] leading-[16px] uppercase tracking-widest font-medium',
+  display: 'font-sans text-[32px] leading-[40px] font-bold tracking-tight',
+  h1: 'font-sans text-[28px] leading-[36px] font-bold tracking-tight',
+  h2: 'font-sans text-[24px] leading-[32px] font-semibold tracking-tight',
+  h3: 'font-sans text-[20px] leading-[28px] font-semibold',
+  h4: 'font-sans text-[18px] leading-[26px] font-semibold',
+  bodyLarge: 'font-sans text-[17px] leading-[26px]',
+  body: 'font-sans text-[15px] leading-[24px]',
+  bodySmall: 'font-sans text-[13px] leading-[20px]',
+  caption: 'font-sans text-[12px] leading-[16px]',
+  overline: 'font-sans text-[11px] leading-[16px] uppercase tracking-widest font-medium',
 };
 
 // Spacing scale (8-point grid)
@@ -314,45 +252,45 @@ export const spacing = {
 // Border radius
 export const borderRadius = {
   none: 0,
-  sm: 6,
-  default: 8,
-  md: 10,
-  lg: 12,
-  xl: 16,
-  '2xl': 20,
-  '3xl': 24,
+  sm: 8,
+  default: 12,
+  md: 16,
+  lg: 20,
+  xl: 24,
+  '2xl': 28,
+  '3xl': 32,
   full: 9999,
 };
 
-// Shadow styles
+// Shadow styles (Softer, deeper premium shadows)
 export const shadows = {
   sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  md: {
-    shadowColor: '#000',
+    shadowColor: brand[500],
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  default: {
+    shadowColor: brand[500],
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  md: {
+    shadowColor: brand[500],
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowColor: brand[500],
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.2,
+    shadowRadius: 32,
+    elevation: 16,
   },
 };
 

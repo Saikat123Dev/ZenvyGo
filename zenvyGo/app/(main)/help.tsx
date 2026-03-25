@@ -29,6 +29,7 @@ import {
   Bell,
   UserCircle,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -157,6 +158,7 @@ export default function HelpScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const handleEmailSupport = () => {
     Linking.openURL('mailto:support@zenvygo.com?subject=ZenvyGo Support Request');
@@ -187,8 +189,8 @@ export default function HelpScreen() {
             <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>Help & Support</Text>
-            <Text style={styles.headerSubtitle}>Find answers or contact us</Text>
+            <Text style={styles.headerTitle}>{t('help.title')}</Text>
+            <Text style={styles.headerSubtitle}>{t('help.subtitle')}</Text>
           </View>
           <View style={styles.headerIcon}>
             <CircleHelp size={28} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
@@ -201,7 +203,7 @@ export default function HelpScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.large }]}>
 
         {/* Contact Options */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>CONTACT US</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('help.contact')}</Text>
         <View style={styles.contactGrid}>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -210,9 +212,9 @@ export default function HelpScreen() {
             <View style={[styles.contactIcon, { backgroundColor: colors.primaryLighter }]}>
               <Mail size={24} color={colors.primary} />
             </View>
-            <Text style={[styles.contactLabel, { color: colors.text }]}>Email</Text>
+            <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.email')}</Text>
             <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
-              support@zenvygo.com
+              {t('help.emailHint')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -222,9 +224,9 @@ export default function HelpScreen() {
             <View style={[styles.contactIcon, { backgroundColor: colors.successBackground }]}>
               <MessageCircle size={24} color={colors.success} />
             </View>
-            <Text style={[styles.contactLabel, { color: colors.text }]}>WhatsApp</Text>
+            <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.whatsapp')}</Text>
             <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
-              Quick chat support
+              {t('help.whatsappHint')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -234,16 +236,16 @@ export default function HelpScreen() {
             <View style={[styles.contactIcon, { backgroundColor: colors.warningBackground }]}>
               <Phone size={24} color={colors.warning} />
             </View>
-            <Text style={[styles.contactLabel, { color: colors.text }]}>Call</Text>
+            <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.call')}</Text>
             <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
-              800-ZENVYGO
+              {t('help.callHint')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* FAQ Section */}
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-          FREQUENTLY ASKED QUESTIONS
+          {t('help.faq')}
         </Text>
         {FAQ_DATA.map((item) => (
           <FAQAccordion key={item.id} item={item} colors={colors} />
@@ -255,10 +257,10 @@ export default function HelpScreen() {
             <CircleHelp size={32} color={colors.primary} strokeWidth={1.5} />
             <View style={styles.helpCopy}>
               <Text style={[styles.helpTitle, { color: colors.primary }]}>
-                Still need help?
+                {t('help.needHelp')}
               </Text>
               <Text style={[styles.helpText, { color: colors.textSecondary }]}>
-                Our support team is available 24/7 to assist you with any questions.
+                {t('help.supportTeam')}
               </Text>
             </View>
           </View>
@@ -266,7 +268,7 @@ export default function HelpScreen() {
             activeOpacity={0.85}
             onPress={handleEmailSupport}
             style={[styles.helpButton, { backgroundColor: colors.primary }]}>
-            <Text style={styles.helpButtonText}>Contact Support</Text>
+            <Text style={styles.helpButtonText}>{t('help.contactSupportBtn')}</Text>
           </TouchableOpacity>
         </Card>
       </ScrollView>
@@ -293,7 +295,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   headerCopy: {
     flex: 1,
@@ -326,14 +328,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: spacing.component,
     marginTop: spacing.section,
-    marginLeft: spacing.tight,
+    marginStart: spacing.tight,
   },
   contactGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.component,
   },
   contactCard: {
     flex: 1,
+    minWidth: 100,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
     padding: spacing.section,

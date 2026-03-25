@@ -177,9 +177,8 @@ class ApiService {
 
   private async getStoredTokens() {
     try {
-      const pairs = await AsyncStorage.multiGet(['accessToken', 'refreshToken']);
-      const accessToken = pairs[0][1];
-      const refreshToken = pairs[1][1];
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
       if (accessToken && refreshToken) {
         return { accessToken, refreshToken };
       }
@@ -191,10 +190,8 @@ class ApiService {
 
   private async storeTokens(accessToken: string, refreshToken: string) {
     try {
-      await AsyncStorage.multiSet([
-        ['accessToken', accessToken],
-        ['refreshToken', refreshToken],
-      ]);
+      await AsyncStorage.setItem('accessToken', accessToken);
+      await AsyncStorage.setItem('refreshToken', refreshToken);
       this.accessToken = accessToken;
       this.refreshToken = refreshToken;
     } catch (error) {
@@ -204,7 +201,8 @@ class ApiService {
 
   async clearTokens() {
     try {
-      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+      await AsyncStorage.removeItem('accessToken');
+      await AsyncStorage.removeItem('refreshToken');
       this.accessToken = null;
       this.refreshToken = null;
     } catch (error) {

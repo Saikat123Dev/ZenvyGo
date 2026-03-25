@@ -47,7 +47,9 @@ import {
   formatTagState,
   formatVehicleName,
 } from '@/lib/format';
-import { useVehiclesScreenData } from '@/store/app-store';
+import { useVehicles, useCreateVehicle, useUpdateVehicle, useArchiveVehicle } from '@/hooks/use-vehicles';
+import { useTags, useCreateTag, useActivateTag } from '@/hooks/use-tags';
+import { useTranslation } from 'react-i18next';
 
 interface VehicleFormState {
   plateNumber: string;
@@ -97,19 +99,16 @@ export default function VehiclesScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
-  const {
-    vehicles,
-    tags,
-    isLoading,
-    isRefreshing,
-    fetchVehiclesAndTags,
-    addVehicle,
-    updateVehicle: updateVehicleInStore,
-    removeVehicle,
-    addTag,
-    updateTag,
-  } = useVehiclesScreenData();
+  // TanStack Query hooks
+  const { data: vehicles = [], isLoading, isRefetching: isRefreshing, refetch: refetchVehiclesAndTags } = useVehicles();
+  const { data: tags = [] } = useTags();
+  const createVehicleMutation = useCreateVehicle();
+  const updateVehicleMutation = useUpdateVehicle();
+  const archiveVehicleMutation = useArchiveVehicle();
+  const createTagMutation = useCreateTag();
+  const activateTagMutation = useActivateTag();
 
   const [submittingVehicle, setSubmittingVehicle] = useState(false);
   const [submittingEmergency, setSubmittingEmergency] = useState(false);
@@ -127,13 +126,6 @@ export default function VehiclesScreen() {
   const [loadingEmergencyProfile, setLoadingEmergencyProfile] = useState(false);
   const [emergencyProfileError, setEmergencyProfileError] = useState<string | null>(null);
   const emergencyModalRequestId = useRef(0);
-
-  // Load data on focus (with caching)
-  useFocusEffect(
-    useCallback(() => {
-      fetchVehiclesAndTags('silent');
-    }, [fetchVehiclesAndTags]),
-  );
 
   // Memoized filtered vehicles for search
   const filteredVehicles = useMemo(() => {
@@ -206,7 +198,7 @@ export default function VehiclesScreen() {
 
   const handleSaveVehicle = useCallback(async () => {
     if (!vehicleForm.plateNumber.trim()) {
-      setVehicleFormError('Plate number is required.');
+      setVehicleFormError(t('vehicles.plateRequired'));
       return;
     }
 
@@ -219,7 +211,7 @@ export default function VehiclesScreen() {
         parsedYear < 1950 ||
         parsedYear > 2100)
     ) {
-      setVehicleFormError('Year must be between 1950 and 2100.');
+      setVehicleFormError(t('vehicles.yearRange'));
       return;
     }
 
@@ -236,19 +228,10 @@ export default function VehiclesScreen() {
     };
 
     try {
-      const response = editingVehicle
-        ? await apiService.updateVehicle(editingVehicle.id, payload)
-        : await apiService.createVehicle(payload);
-
-      if (!response.success || !response.data) {
-        throw new Error(response.error || 'Unable to save vehicle');
-      }
-
-      // Optimistic update
       if (editingVehicle) {
-        updateVehicleInStore(response.data);
+        await updateVehicleMutation.mutateAsync({ vehicleId: editingVehicle.id, ...payload });
       } else {
-        addVehicle(response.data);
+        await createVehicleMutation.mutateAsync(payload);
       }
 
       setVehicleModalVisible(false);
@@ -259,54 +242,50 @@ export default function VehiclesScreen() {
     } finally {
       setSubmittingVehicle(false);
     }
-  }, [vehicleForm, editingVehicle, addVehicle, updateVehicleInStore]);
+  }, [vehicleForm, editingVehicle, createVehicleMutation, updateVehicleMutation]);
 
   const handleArchiveVehicle = useCallback((vehicle: Vehicle) => {
     Alert.alert(
-      'Archive vehicle',
-      `Archive ${formatVehicleName(vehicle)}? You can keep existing tags for history, but the vehicle will no longer be active.`,
+      t('vehicles.archiveVehicle'),
+      t('vehicles.archiveConfirm', { name: formatVehicleName(vehicle) }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Archive',
+          text: t('common.archive'),
           style: 'destructive',
-          onPress: async () => {
-            const response = await apiService.archiveVehicle(vehicle.id);
-            if (!response.success) {
-              Alert.alert('Unable to archive vehicle', response.error || 'Please try again.');
-              return;
-            }
-
-            removeVehicle(vehicle.id);
+          onPress: () => {
+            archiveVehicleMutation.mutate(vehicle.id, {
+              onError: (err) => {
+                Alert.alert(t('vehicles.archiveError'), err.message || t('common.tryAgain'));
+              },
+            });
             setVehicleModalVisible(false);
             setEditingVehicle(null);
           },
         },
       ],
     );
-  }, [removeVehicle]);
+  }, [archiveVehicleMutation, t]);
 
-  const handleCreateTag = useCallback(async (vehicle: Vehicle) => {
-    const response = await apiService.createTag({ vehicleId: vehicle.id, type: 'qr' });
-    if (!response.success || !response.data) {
-      Alert.alert('Unable to create QR tag', response.error || 'Please try again.');
-      return;
-    }
+  const handleCreateTag = useCallback((vehicle: Vehicle) => {
+    createTagMutation.mutate({ vehicleId: vehicle.id, type: 'qr' }, {
+      onSuccess: (newTag) => {
+        setSelectedTag(newTag);
+        setQrModalVisible(true);
+      },
+      onError: (err) => {
+        Alert.alert(t('vehicles.tagCreateError'), err.message || t('common.tryAgain'));
+      },
+    });
+  }, [createTagMutation]);
 
-    addTag(response.data);
-    setSelectedTag(response.data);
-    setQrModalVisible(true);
-  }, [addTag]);
-
-  const handleActivateTag = useCallback(async (tag: TagSummary) => {
-    const response = await apiService.activateTag(tag.id);
-    if (!response.success || !response.data) {
-      Alert.alert('Unable to activate tag', response.error || 'Please try again.');
-      return;
-    }
-
-    updateTag(response.data);
-  }, [updateTag]);
+  const handleActivateTag = useCallback((tag: TagSummary) => {
+    activateTagMutation.mutate(tag.id, {
+      onError: (err) => {
+        Alert.alert(t('vehicles.tagActivateError'), err.message || t('common.tryAgain'));
+      },
+    });
+  }, [activateTagMutation]);
 
   const openQrModal = useCallback((tag: TagSummary) => {
     setSelectedTag(tag);
@@ -333,7 +312,7 @@ export default function VehiclesScreen() {
     setLoadingEmergencyProfile(false);
 
     if (!response.success) {
-      setEmergencyProfileError(response.error || 'Please try again.');
+      setEmergencyProfileError(response.error || t('common.tryAgain'));
       return;
     }
 
@@ -400,8 +379,8 @@ export default function VehiclesScreen() {
 
     if (contacts.some((contact) => !contact.name || !contact.phone)) {
       Alert.alert(
-        'Incomplete emergency contact',
-        'Each emergency contact must include both a name and phone number.',
+        t('vehicles.incompleteContact'),
+        t('vehicles.incompleteContactDesc'),
       );
       return;
     }
@@ -421,7 +400,7 @@ export default function VehiclesScreen() {
     setSubmittingEmergency(false);
 
     if (!response.success || !response.data) {
-      Alert.alert('Unable to save emergency profile', response.error || 'Please try again.');
+      Alert.alert(t('vehicles.saveError'), response.error || t('common.tryAgain'));
       return;
     }
 
@@ -441,8 +420,8 @@ export default function VehiclesScreen() {
           <View style={styles.vehicleHeader}>
             <LinearGradient
               colors={colorScheme === 'dark'
-                ? ['#1E3A8A', '#3B82F6']
-                : ['#1E3A8A', '#3B82F6']}
+                ? ['#00D1FF', '#0070DE']
+                : ['#00BAFF', '#0070DE']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.vehicleIcon}>
@@ -460,10 +439,10 @@ export default function VehiclesScreen() {
               {vehicle.status === 'active' ? (
                 <View style={[styles.statusBadge, { backgroundColor: colors.successBackground }]}>
                   <Sparkles size={12} color={colors.success} />
-                  <Text style={[styles.statusText, { color: colors.success }]}>Active</Text>
+                  <Text style={[styles.statusText, { color: colors.success }]}>{t('common.active')}</Text>
                 </View>
               ) : (
-                <Badge variant="default">Archived</Badge>
+                <Badge variant="default">{t('vehicles.archived')}</Badge>
               )}
             </View>
           </View>
@@ -499,25 +478,25 @@ export default function VehiclesScreen() {
 
           <Text style={[styles.metaText, { color: colors.textSecondary }]}>
             {latestTag
-              ? `Latest tag created ${formatRelativeTime(latestTag.createdAt)}`
-              : 'Generate a QR tag to start accepting requests'}
+              ? t('vehicles.tagCreated', { time: formatRelativeTime(latestTag.createdAt) })
+              : t('vehicles.generateTagHint')}
           </Text>
 
           <View style={styles.actionWrap}>
             <ActionChip
-              label="Edit"
+              label={t('vehicles.edit')}
               icon={<PenSquare size={15} color={colors.textSecondary} />}
               colors={colors}
               onPress={() => openEditVehicle(vehicle)}
             />
             <ActionChip
-              label="Emergency"
+              label={t('vehicles.emergency')}
               icon={<HeartHandshake size={15} color={colors.danger} />}
               colors={colors}
               onPress={() => openEmergencyModal(vehicle)}
             />
             <ActionChip
-              label="Generate QR"
+              label={t('vehicles.generateQr')}
               icon={<ShieldPlus size={15} color={colors.primary} />}
               colors={colors}
               highlighted
@@ -525,7 +504,7 @@ export default function VehiclesScreen() {
             />
             {generatedTag ? (
               <ActionChip
-                label="Activate"
+                label={t('vehicles.activate')}
                 icon={<Tag size={15} color={colors.success} />}
                 colors={colors}
                 onPress={() => handleActivateTag(generatedTag)}
@@ -533,7 +512,7 @@ export default function VehiclesScreen() {
             ) : null}
             {latestTag ? (
               <ActionChip
-                label="Show QR"
+                label={t('vehicles.showQr')}
                 icon={<QrCode size={15} color={colors.info} />}
                 colors={colors}
                 onPress={() => openQrModal(latestTag)}
@@ -550,37 +529,37 @@ export default function VehiclesScreen() {
   const ListEmptyComponent = useMemo(() => (
     <EmptyState
       icon={<Car size={60} color={colors.textMuted} strokeWidth={1.5} />}
-      title={vehicles.length === 0 ? 'No vehicles yet' : 'No matches found'}
+      title={vehicles.length === 0 ? t('vehicles.noVehicles') : t('vehicles.noMatches')}
       description={
         vehicles.length === 0
-          ? 'Add your first vehicle to generate QR tags and store emergency contacts.'
-          : 'Try a different search term or clear the filter.'
+          ? t('vehicles.noVehiclesDesc')
+          : t('vehicles.noMatchesDesc')
       }
       action={
         vehicles.length === 0 ? (
           <Button fullWidth={false} onPress={openCreateVehicle}>
-            Add Vehicle
+            {t('vehicles.addVehicle')}
           </Button>
         ) : undefined
       }
     />
-  ), [colors.textMuted, vehicles.length, openCreateVehicle]);
+  ), [colors.textMuted, vehicles.length, openCreateVehicle, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Gradient Header */}
       <LinearGradient
         colors={colorScheme === 'dark'
-          ? ['#0D9488', '#0F172A']
-          : ['#0D9488', '#14B8A6']}
+          ? ['#0070DE', '#0A2540'] // Deep premium gradient
+          : ['#00BAFF', '#0070DE']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + spacing.component }]}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Vehicles</Text>
+            <Text style={styles.headerTitle}>{t('vehicles.title')}</Text>
             <Text style={styles.headerSubtitle}>
-              {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''} registered
+              {t('vehicles.registered', { count: vehicles.length })}
             </Text>
           </View>
           <TouchableOpacity
@@ -608,7 +587,7 @@ export default function VehiclesScreen() {
           <Search size={18} color={colors.textMuted} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search by plate, make, model..."
+            placeholder={t('vehicles.searchPlaceholder')}
             placeholderTextColor={colors.inputPlaceholder}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -636,7 +615,7 @@ export default function VehiclesScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
-              onRefresh={() => fetchVehiclesAndTags('refresh')}
+              onRefresh={() => refetchVehiclesAndTags()}
               tintColor={colors.primary}
             />
           }
@@ -650,11 +629,11 @@ export default function VehiclesScreen() {
       <VehicleEditorModal
         colors={colors}
         visible={vehicleModalVisible}
-        title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
+        title={editingVehicle ? t('vehicles.editVehicle') : t('vehicles.addVehicle')}
         subtitle={
           editingVehicle
-            ? 'Update the saved vehicle details.'
-            : 'Add a vehicle before generating any QR tags.'
+            ? t('vehicles.editVehicleDesc')
+            : t('vehicles.addVehicleDesc')
         }
         onClose={() => {
           setVehicleModalVisible(false);
@@ -669,7 +648,7 @@ export default function VehiclesScreen() {
                 fullWidth={false}
                 style={styles.modalFooterButton}
                 onPress={() => handleArchiveVehicle(editingVehicle)}>
-                Archive
+                {t('common.archive')}
               </Button>
             ) : null}
             <Button
@@ -677,30 +656,30 @@ export default function VehiclesScreen() {
               style={styles.modalFooterButton}
               loading={submittingVehicle}
               onPress={handleSaveVehicle}>
-              {editingVehicle ? 'Save Changes' : 'Create Vehicle'}
+              {editingVehicle ? t('vehicles.saveChanges') : t('vehicles.createVehicle')}
             </Button>
           </View>
         }>
         <Input
-          label="Plate Number"
+          label={t('vehicles.plateNumber')}
           value={vehicleForm.plateNumber}
           onChangeText={(text) => setVehicleForm((current) => ({ ...current, plateNumber: text }))}
           placeholder="A12345"
         />
         <Input
-          label="Region"
+          label={t('vehicles.region')}
           value={vehicleForm.plateRegion}
           onChangeText={(text) => setVehicleForm((current) => ({ ...current, plateRegion: text }))}
           placeholder="Dubai"
         />
         <Input
-          label="Make"
+          label={t('vehicles.make')}
           value={vehicleForm.make}
           onChangeText={(text) => setVehicleForm((current) => ({ ...current, make: text }))}
           placeholder="Toyota"
         />
         <Input
-          label="Model"
+          label={t('vehicles.model')}
           value={vehicleForm.model}
           onChangeText={(text) => setVehicleForm((current) => ({ ...current, model: text }))}
           placeholder="Camry"
@@ -708,7 +687,7 @@ export default function VehiclesScreen() {
         <View style={styles.inlineFields}>
           <View style={styles.inlineField}>
             <Input
-              label="Color"
+              label={t('vehicles.color')}
               value={vehicleForm.color}
               onChangeText={(text) => setVehicleForm((current) => ({ ...current, color: text }))}
               placeholder="White"
@@ -716,7 +695,7 @@ export default function VehiclesScreen() {
           </View>
           <View style={styles.inlineField}>
             <Input
-              label="Year"
+              label={t('vehicles.year')}
               value={vehicleForm.year}
               onChangeText={(text) => setVehicleForm((current) => ({ ...current, year: text }))}
               placeholder="2025"
@@ -732,12 +711,12 @@ export default function VehiclesScreen() {
       <VehicleEditorModal
         colors={colors}
         visible={qrModalVisible}
-        title="QR Tag"
-        subtitle="Share this code on the vehicle so others can contact you without seeing your real number."
+        title={t('vehicles.qrTag')}
+        subtitle={t('vehicles.qrTagDesc')}
         onClose={() => setQrModalVisible(false)}
         footer={
           <Button onPress={() => setQrModalVisible(false)} fullWidth={false}>
-            Close
+            {t('common.close')}
           </Button>
         }>
         {selectedTag ? (
@@ -761,17 +740,17 @@ export default function VehiclesScreen() {
       <VehicleEditorModal
         colors={colors}
         visible={emergencyModalVisible}
-        title="Emergency Profile"
+        title={t('vehicles.emergencyProfile')}
         subtitle={
           selectedVehicleForEmergency
-            ? `Emergency contacts for ${formatVehicleName(selectedVehicleForEmergency)}`
-            : 'Emergency profile'
+            ? t('vehicles.emergencyProfileFor', { name: formatVehicleName(selectedVehicleForEmergency) })
+            : t('vehicles.emergencyProfile')
         }
         onClose={closeEmergencyModal}
         footer={
           loadingEmergencyProfile || emergencyProfileError ? null : (
             <Button loading={submittingEmergency} onPress={handleSaveEmergencyProfile} fullWidth={false}>
-              Save Profile
+              {t('vehicles.saveProfile')}
             </Button>
           )
         }>
@@ -782,19 +761,19 @@ export default function VehiclesScreen() {
         ) : emergencyProfileError ? (
           <View style={styles.emergencyState}>
             <Text style={[styles.emergencyStateTitle, { color: colors.text }]}>
-              Unable to load emergency profile
+              {t('vehicles.loadError')}
             </Text>
             <Text style={[styles.emergencyStateBody, { color: colors.textSecondary }]}>
               {emergencyProfileError}
             </Text>
             <Button variant="outline" fullWidth={false} onPress={retryEmergencyProfileLoad}>
-              Retry
+              {t('common.retry')}
             </Button>
           </View>
         ) : (
           <>
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-              EMERGENCY CONTACTS
+              {t('vehicles.emergencyContacts')}
             </Text>
             {emergencyForm.contacts.map((contact, index) => (
               <View
@@ -808,31 +787,31 @@ export default function VehiclesScreen() {
                 ]}>
                 <View style={styles.contactBlockHeader}>
                   <Text style={[styles.contactBlockTitle, { color: colors.text }]}>
-                    Contact {index + 1}
+                    {t('vehicles.contact', { index: index + 1 })}
                   </Text>
                   {emergencyForm.contacts.length > 1 ? (
                     <TouchableOpacity onPress={() => removeEmergencyContact(index)}>
                       <Text style={[styles.contactRemoveText, { color: colors.danger }]}>
-                        Remove
+                        {t('vehicles.remove')}
                       </Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
                 <Input
-                  label="Name"
+                  label={t('vehicles.name')}
                   value={contact.name}
                   onChangeText={(text) => updateEmergencyContact(index, { name: text })}
                   placeholder="Aisha Khan"
                 />
                 <Input
-                  label="Phone"
+                  label={t('vehicles.phone')}
                   value={contact.phone}
                   onChangeText={(text) => updateEmergencyContact(index, { phone: text })}
                   placeholder="+971501234567"
                   keyboardType="phone-pad"
                 />
                 <Input
-                  label="Relation"
+                  label={t('vehicles.relation')}
                   value={contact.relation}
                   onChangeText={(text) => updateEmergencyContact(index, { relation: text })}
                   placeholder="Spouse, sibling, coworker"
@@ -844,11 +823,11 @@ export default function VehiclesScreen() {
                 variant="outline"
                 fullWidth={false}
                 onPress={addEmergencyContact}>
-                Add Contact
+                {t('vehicles.addContact')}
               </Button>
             ) : null}
             <Input
-              label="Roadside Assistance Number"
+              label={t('vehicles.roadsideAssistance')}
               value={emergencyForm.roadsideAssistanceNumber}
               onChangeText={(text) =>
                 setEmergencyForm((current) => ({
@@ -860,7 +839,7 @@ export default function VehiclesScreen() {
               keyboardType="phone-pad"
             />
             <Input
-              label="Medical Notes"
+              label={t('vehicles.medicalNotes')}
               value={emergencyForm.medicalNotes}
               onChangeText={(text) =>
                 setEmergencyForm((current) => ({
@@ -868,14 +847,14 @@ export default function VehiclesScreen() {
                   medicalNotes: text,
                 }))
               }
-              placeholder="Allergies, blood group, or anything helpful"
+              placeholder={t('vehicles.medicalNotesPlaceholder')}
               multiline
               numberOfLines={4}
               inputStyle={styles.multilineInput}
             />
             {emergencyProfile ? (
               <Text style={[styles.metaText, { color: colors.textMuted }]}>
-                Last updated {formatRelativeTime(emergencyProfile.updatedAt)}
+                {t('vehicles.lastUpdated', { time: formatRelativeTime(emergencyProfile.updatedAt) })}
               </Text>
             ) : null}
           </>
@@ -1223,10 +1202,11 @@ const styles = StyleSheet.create({
     gap: spacing.component,
   },
   modalFooterButton: {
-    minWidth: 132,
+    flex: 1,
   },
   inlineFields: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.component,
   },
   inlineField: {
@@ -1240,8 +1220,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   qrFrame: {
-    width: 240,
-    height: 240,
+    width: '80%',
+    aspectRatio: 1,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
     padding: spacing.component,

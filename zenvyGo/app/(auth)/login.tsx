@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: -8,
+    marginStart: -8,
     marginBottom: spacing.section,
   },
   header: {

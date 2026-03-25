@@ -42,7 +42,7 @@ export function Card({
 
   const handlePressIn = () => {
     if (onPress && !disabled) {
-      scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+      scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
     }
   };
 

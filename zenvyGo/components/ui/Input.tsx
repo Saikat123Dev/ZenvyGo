@@ -14,7 +14,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Colors, componentHeights, borderRadius, animations } from '@/constants/theme';
+import { Colors, componentHeights, borderRadius, animations, shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface InputProps extends Omit<TextInputProps, 'style'> {
@@ -88,6 +88,7 @@ export const Input = forwardRef<TextInput, InputProps>(
               alignItems: isMultiline ? 'flex-start' : 'center',
             },
             animatedBorderStyle,
+            isFocused ? shadows.sm : undefined,
           ]}>
           {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
           <TextInput
@@ -151,10 +152,10 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   inputWithLeftIcon: {
-    paddingLeft: 8,
+    paddingStart: 8,
   },
   inputWithRightIcon: {
-    paddingRight: 8,
+    paddingEnd: 8,
   },
   multilineInput: {
     paddingTop: 16,
@@ -162,10 +163,10 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   leftIcon: {
-    marginRight: 4,
+    marginEnd: 4,
   },
   rightIcon: {
-    marginLeft: 4,
+    marginStart: 4,
     padding: 4,
   },
   helperText: {

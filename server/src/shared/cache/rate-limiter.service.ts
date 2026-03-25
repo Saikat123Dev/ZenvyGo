@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from 'express';
 import { RATE_LIMITS } from '../config/constants';
-import { REDIS_PREFIXES } from './redis.client';
+import { redis, REDIS_PREFIXES } from './redis.client';
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -21,34 +21,37 @@ function toRateLimitConfig(source: { WINDOW_MS: number; MAX: number }): RateLimi
   };
 }
 
+/**
+ * Redis-backed fixed-window rate limiter.
+ *
+ * Uses INCR + EXPIRE for atomic counting. Rate limit state
+ * persists across restarts and is shared across instances.
+ */
 class RateLimitService {
-  private readonly buckets = new Map<string, { timestamps: number[]; expiresAt: number }>();
-
+  /**
+   * Check and increment the rate limit counter for a key.
+   * Uses a fixed window: the key expires after `windowMs` milliseconds.
+   */
   public async checkRateLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
-    const now = Date.now();
-    const windowStart = now - config.windowMs;
+    const windowSeconds = Math.ceil(config.windowMs / 1000);
     const redisKey = `${REDIS_PREFIXES.RATE_LIMIT}${key}`;
-    const existing = this.buckets.get(redisKey);
 
-    let timestamps = existing?.timestamps ?? [];
-    if (existing && existing.expiresAt <= now) {
-      timestamps = [];
+    // INCR is atomic — creates the key with value 1 if it doesn't exist
+    const totalHits = await redis.increment(redisKey);
+
+    // Set expiry only on first hit (when counter was just created)
+    if (totalHits === 1) {
+      await redis.expire(redisKey, windowSeconds);
     }
 
-    timestamps = timestamps.filter((timestamp) => timestamp > windowStart);
-    timestamps.push(now);
-
-    this.buckets.set(redisKey, {
-      timestamps,
-      expiresAt: now + config.windowMs,
-    });
-
-    const totalHits = timestamps.length;
+    // Calculate reset time from TTL
+    const ttl = await redis.getTTL(redisKey);
+    const resetMs = ttl > 0 ? ttl * 1000 : config.windowMs;
 
     return {
       allowed: totalHits <= config.max,
       remaining: Math.max(0, config.max - totalHits),
-      resetTime: new Date(now + config.windowMs),
+      resetTime: new Date(Date.now() + resetMs),
       totalHits,
     };
   }

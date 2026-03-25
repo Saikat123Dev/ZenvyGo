@@ -34,6 +34,7 @@ import {
   Vibrate,
   X,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -41,13 +42,13 @@ import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
 
 const THEME_OPTIONS: Array<{
   value: ThemePreference;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   icon: typeof Sun;
 }> = [
-  { value: 'system', label: 'System', description: 'Match your device settings', icon: Smartphone },
-  { value: 'light', label: 'Light', description: 'Bright and clean interface', icon: Sun },
-  { value: 'dark', label: 'Dark', description: 'Easy on the eyes at night', icon: Moon },
+  { value: 'system', labelKey: 'settings.themeSystem', descriptionKey: 'settings.systemDesc', icon: Smartphone },
+  { value: 'light', labelKey: 'settings.themeLight', descriptionKey: 'settings.lightDesc', icon: Sun },
+  { value: 'dark', labelKey: 'settings.themeDark', descriptionKey: 'settings.darkDesc', icon: Moon },
 ];
 
 export default function SettingsScreen() {
@@ -56,6 +57,7 @@ export default function SettingsScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const { themePreference, setThemePreference } = useThemePreference();
+  const { t } = useTranslation();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -65,10 +67,10 @@ export default function SettingsScreen() {
 
   const themeLabel =
     themePreference === 'system'
-      ? 'System'
+      ? t('settings.themeSystem')
       : themePreference === 'light'
-        ? 'Light'
-        : 'Dark';
+        ? t('settings.themeLight')
+        : t('settings.themeDark');
 
   const themeIcon =
     themePreference === 'light' ? Sun : themePreference === 'dark' ? Moon : Smartphone;
@@ -80,28 +82,28 @@ export default function SettingsScreen() {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
         Alert.alert(
-          'Update Available',
-          'A new version is ready to be downloaded. Would you like to update now?',
+          t('settings.updateAvailable'),
+          t('settings.updateAvailableDesc'),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('common.cancel'), style: 'cancel' },
             {
-              text: 'Download & Restart',
+              text: t('settings.downloadRestart'),
               onPress: async () => {
                 try {
                   await Updates.fetchUpdateAsync();
                   await Updates.reloadAsync();
                 } catch (e: any) {
-                  Alert.alert('Update Error', e.message || 'Failed to apply the update.');
+                  Alert.alert(t('settings.updateError'), e.message || t('common.tryAgain'));
                 }
               },
             },
           ]
         );
       } else {
-        Alert.alert('Up to Date', 'You are already running the latest version.');
+        Alert.alert(t('settings.upToDate'), t('settings.upToDateDesc'));
       }
     } catch (error: any) {
-      Alert.alert('Update Error', error.message || 'Failed to check for updates. You might be in development mode.');
+      Alert.alert(t('settings.updateError'), error.message || t('common.tryAgain'));
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -109,23 +111,23 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = useCallback(() => {
     Alert.alert(
-      'Delete Account',
-      'This action cannot be undone. All your data including vehicles, tags, and contact history will be permanently deleted.',
+      t('settings.deleteAccount'),
+      t('settings.deleteAccountConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete Account',
+          text: t('settings.deleteAccount'),
           style: 'destructive',
           onPress: () => {
             Alert.alert(
-              'Contact Support',
-              'To delete your account, please contact support@zenvygo.com with your registered email address.',
+              t('settings.contactSupport'),
+              t('settings.deleteAccountContact'),
             );
           },
         },
       ],
     );
-  }, []);
+  }, [t]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -144,8 +146,8 @@ export default function SettingsScreen() {
             <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>Customize your ZenvyGo experience</Text>
+            <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+            <Text style={styles.headerSubtitle}>{t('settings.subtitle')}</Text>
           </View>
           <View style={styles.headerIcon}>
             <Settings2 size={28} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
@@ -158,7 +160,7 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.large }]}>
 
         {/* Appearance Section */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APPEARANCE</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.appearance')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <TouchableOpacity
             activeOpacity={0.7}
@@ -168,7 +170,7 @@ export default function SettingsScreen() {
               <ThemeIcon size={20} color={colors.primary} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Theme</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.theme')}</Text>
               <Text style={[styles.settingsValue, { color: colors.textSecondary }]}>{themeLabel}</Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -176,16 +178,16 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Notifications Section */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>NOTIFICATIONS</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.notifications')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <View style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
             <View style={[styles.settingsIcon, { backgroundColor: colors.warningBackground }]}>
               <Bell size={20} color={colors.warning} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Push Notifications</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.pushNotifications')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Get alerts for contact requests
+                {t('settings.pushNotificationsHint')}
               </Text>
             </View>
             <Switch
@@ -200,9 +202,9 @@ export default function SettingsScreen() {
               <Bell size={20} color={colors.info} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Sound</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.sound')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Play sound for new alerts
+                {t('settings.soundHint')}
               </Text>
             </View>
             <Switch
@@ -217,9 +219,9 @@ export default function SettingsScreen() {
               <Vibrate size={20} color={colors.success} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Vibration</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.vibration')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Haptic feedback for interactions
+                {t('settings.vibrationHint')}
               </Text>
             </View>
             <Switch
@@ -232,7 +234,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Privacy & Security Section */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PRIVACY & SECURITY</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.privacy')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <TouchableOpacity
             activeOpacity={0.7}
@@ -242,9 +244,9 @@ export default function SettingsScreen() {
               <Shield size={20} color={colors.primary} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Privacy Policy</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.privacyPolicy')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                How we protect your data
+                {t('settings.privacyPolicyHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -257,9 +259,9 @@ export default function SettingsScreen() {
               <FileText size={20} color={colors.info} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Terms of Service</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.terms')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Usage terms and conditions
+                {t('settings.termsHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -272,24 +274,24 @@ export default function SettingsScreen() {
               <FileText size={20} color={colors.success} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>My Documents</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.myDocuments')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Upload and manage driver documents
+                {t('settings.myDocumentsHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Change Password', 'Password change feature coming soon.')}
+            onPress={() => Alert.alert(t('settings.changePassword'), t('settings.passwordComingSoon'))}
             style={styles.settingsRowLast}>
             <View style={[styles.settingsIcon, { backgroundColor: colors.warningBackground }]}>
               <Lock size={20} color={colors.warning} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Change Password</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.changePassword')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Update your account password
+                {t('settings.changePasswordHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -297,7 +299,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Support Section */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SUPPORT</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.support')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <TouchableOpacity
             activeOpacity={0.7}
@@ -307,24 +309,24 @@ export default function SettingsScreen() {
               <CircleHelp size={20} color={colors.success} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Help & FAQ</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.helpFaq')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Common questions answered
+                {t('settings.helpFaqHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Contact Support', 'Email us at support@zenvygo.com')}
+            onPress={() => Alert.alert(t('settings.contactSupport'), t('settings.contactSupportEmail'))}
             style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
             <View style={[styles.settingsIcon, { backgroundColor: colors.primaryLighter }]}>
               <MessageCircleQuestion size={20} color={colors.primary} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Contact Support</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.contactSupport')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Get help from our team
+                {t('settings.contactSupportHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -337,9 +339,9 @@ export default function SettingsScreen() {
               <Info size={20} color={colors.info} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>About ZenvyGo</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.about')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                App version and info
+                {t('settings.aboutHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -347,7 +349,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* App Updates Section */}
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APP UPDATES</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.appUpdates')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <TouchableOpacity
             activeOpacity={0.7}
@@ -358,9 +360,9 @@ export default function SettingsScreen() {
               <Download size={20} color={colors.info} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Check for Updates</Text>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.checkUpdates')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                {isCheckingUpdate ? 'Checking for updates...' : 'Download and install OTA updates'}
+                {isCheckingUpdate ? t('settings.checkingUpdates') : t('settings.checkUpdatesHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -368,7 +370,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Danger Zone */}
-        <Text style={[styles.sectionLabel, { color: colors.danger }]}>DANGER ZONE</Text>
+        <Text style={[styles.sectionLabel, { color: colors.danger }]}>{t('settings.dangerZone')}</Text>
         <Card style={styles.sectionCard} padding="none">
           <TouchableOpacity
             activeOpacity={0.7}
@@ -378,9 +380,9 @@ export default function SettingsScreen() {
               <Trash2 size={20} color={colors.danger} />
             </View>
             <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.danger }]}>Delete Account</Text>
+              <Text style={[styles.settingsTitle, { color: colors.danger }]}>{t('settings.deleteAccount')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                Permanently remove all your data
+                {t('settings.deleteAccountHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.danger} />
@@ -401,9 +403,9 @@ export default function SettingsScreen() {
             <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderCopy}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Theme</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>{t('settings.chooseTheme')}</Text>
                   <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-                    Select how ZenvyGo should appear
+                    {t('settings.chooseThemeDesc')}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -447,10 +449,10 @@ export default function SettingsScreen() {
                             styles.themeLabel,
                             { color: selected ? colors.primary : colors.text },
                           ]}>
-                          {option.label}
+                          {t(option.labelKey)}
                         </Text>
                         <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
-                          {option.description}
+                          {t(option.descriptionKey)}
                         </Text>
                       </View>
                       {selected && (
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   headerCopy: {
     flex: 1,
@@ -522,7 +524,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: spacing.component,
     marginTop: spacing.section,
-    marginLeft: spacing.tight,
+    marginStart: spacing.tight,
   },
   sectionCard: {
     overflow: 'hidden',
@@ -546,7 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginEnd: spacing.component,
   },
   settingsCopy: {
     flex: 1,

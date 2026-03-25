@@ -16,7 +16,6 @@ export interface UploadResult {
  */
 class FtpService {
   private isConfigured: boolean = false;
-  private resolvedUploadDir?: string;
 
   constructor() {
     this.isConfigured = this.checkConfiguration();
@@ -69,6 +68,7 @@ class FtpService {
 
   /**
    * Upload a file buffer to FTP server
+   * All files are uploaded directly to FTP_REMOTE_DIR without subdirectories
    * @param buffer - File buffer
    * @param originalName - Original file name
    * @param mimeType - MIME type of the file
@@ -86,71 +86,63 @@ class FtpService {
     const client = await this.createClient();
 
     try {
-      // Generate unique file name
+      // Generate unique file name with timestamp for additional uniqueness
       const ext = this.getExtensionFromMime(mimeType) || path.extname(originalName) || '.jpg';
-      const fileName = `${generateUUID()}${ext}`;
-      const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
-      const orderedCandidates = this.resolvedUploadDir
-        ? [
-            this.resolvedUploadDir,
-            ...directoryCandidates.filter((candidate) => candidate !== this.resolvedUploadDir),
-          ]
-        : directoryCandidates;
-      const attemptErrors: Array<{ dir: string; message: string }> = [];
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${generateUUID()}${ext}`;
 
-      for (const dir of orderedCandidates) {
-        const remotePath = this.buildRemotePath(dir, fileName);
+      // Upload directly to the configured remote directory (e.g., /zenvygo)
+      const uploadDir = env.FTP_REMOTE_DIR || '/zenvygo';
+      const remotePath = `${uploadDir}/${fileName}`;
 
-        try {
-          if (dir !== '.') {
-            await client.ensureDir(dir);
-          }
+      log.info('Starting FTP upload', {
+        fileName,
+        remotePath,
+        uploadDir,
+        bufferSize: buffer.length,
+        mimeType,
+      });
 
-          await client.uploadFrom(Readable.from(buffer), remotePath);
+      // Upload the file (assumes directory already exists on server)
+      await client.uploadFrom(Readable.from(buffer), remotePath);
 
-          const fileUrl = this.buildPublicFileUrl(remotePath);
+      // Build public URL for the uploaded file
+      const fileUrl = this.buildPublicFileUrl(fileName);
 
-          log.info('File uploaded successfully via FTP', {
-            fileName,
-            remotePath,
-            uploadDirUsed: dir,
-            size: buffer.length,
-          });
+      log.info('File uploaded successfully via FTP', {
+        fileName,
+        remotePath,
+        fileUrl,
+        size: buffer.length,
+      });
 
-          this.resolvedUploadDir = dir;
+      return {
+        fileUrl,
+        fileName,
+        filePath: remotePath,
+      };
+    } catch (error: any) {
+      const message = String(error?.message ?? 'Unknown FTP upload error');
 
-          return {
-            fileUrl,
-            fileName,
-            filePath: remotePath,
-          };
-        } catch (error: any) {
-          const message = String(error?.message ?? 'Unknown FTP upload error');
-          attemptErrors.push({ dir, message });
+      log.error('FTP upload failed', error, {
+        errorMessage: message,
+        ftpHost: env.FTP_HOST,
+        ftpPort: env.FTP_PORT,
+        uploadDir: env.FTP_REMOTE_DIR,
+        bufferSize: buffer.length,
+        hint: message.includes('553')
+          ? 'Directory does not exist or no write permission. Ensure FTP_REMOTE_DIR exists and is writable.'
+          : undefined,
+      });
 
-          if (!this.isDirectoryFallbackError(message)) {
-            throw error;
-          }
-
-          log.warn('FTP upload attempt failed for directory candidate', {
-            dir,
-            message,
-          });
-        }
-      }
-
-      throw new Error(
-        `FTP upload failed for all directory candidates: ${attemptErrors
-          .map((attempt) => `${attempt.dir}: ${attempt.message}`)
-          .join(' | ')}`
-      );
+      throw error;
     } finally {
       client.close();
     }
   }
 
   /**
-   * Startup health check to validate FTP connectivity and resolve an upload directory.
+   * Startup health check to validate FTP connectivity and directory access.
    * Non-throwing by design so it never blocks application boot.
    */
   async runStartupHealthCheck(): Promise<void> {
@@ -162,56 +154,33 @@ class FtpService {
     const client = await this.createClient();
 
     try {
-      const directoryCandidates = this.getDirectoryCandidates(env.FTP_REMOTE_DIR);
-      const attemptErrors: Array<{ dir: string; message: string }> = [];
+      const uploadDir = env.FTP_REMOTE_DIR || '/zenvygo';
       let currentDir: string | undefined;
 
       try {
         currentDir = await client.pwd();
+        log.info('FTP current working directory', { pwd: currentDir });
       } catch {
         currentDir = undefined;
       }
 
-      for (const dir of directoryCandidates) {
-        try {
-          if (dir !== '.' && dir !== '/') {
-            await client.cd(dir);
-          }
-
-          this.resolvedUploadDir = dir;
-
-          if (dir !== env.FTP_REMOTE_DIR) {
-            log.warn('FTP upload directory fallback selected at startup', {
-              configuredUploadDir: env.FTP_REMOTE_DIR,
-              resolvedUploadDir: dir,
-              currentDir,
-              directoryCandidates,
-              failedCandidates: attemptErrors,
-            });
-          } else {
-            log.info('FTP startup health check passed', {
-              resolvedUploadDir: dir,
-              configuredUploadDir: env.FTP_REMOTE_DIR,
-              currentDir,
-            });
-          }
-
-          return;
-        } catch (error: any) {
-          const message = String(error?.message ?? 'Unknown FTP directory check error');
-          attemptErrors.push({ dir, message });
-
-          if (!this.isDirectoryFallbackError(message)) {
-            throw error;
-          }
-        }
+      // Try to change to the upload directory to verify it exists
+      try {
+        await client.cd(uploadDir);
+        log.info('FTP startup health check passed', {
+          uploadDir,
+          currentDir,
+          status: 'Directory accessible',
+        });
+      } catch (error: any) {
+        const message = String(error?.message ?? 'Unknown error');
+        log.error('FTP startup health check failed', error, {
+          uploadDir,
+          currentDir,
+          errorMessage: message,
+          hint: 'Upload directory does not exist or is not accessible. Create the directory on FTP server manually.',
+        });
       }
-
-      log.error('FTP startup health check failed for all directory candidates', undefined, {
-        configuredUploadDir: env.FTP_REMOTE_DIR,
-        currentDir,
-        attempts: attemptErrors,
-      });
     } catch (error: any) {
       log.error('FTP startup health check encountered an unexpected error', error, {
         configuredUploadDir: env.FTP_REMOTE_DIR,
@@ -221,57 +190,11 @@ class FtpService {
     }
   }
 
-  private getDirectoryCandidates(configuredDir: string): string[] {
-    const normalized = (configuredDir || '.').trim().replace(/\/+$/, '') || '/';
-    const candidates = [normalized];
-
-    if (normalized.startsWith('/')) {
-      const withoutLeadingSlash = normalized.slice(1);
-      if (withoutLeadingSlash) {
-        candidates.push(withoutLeadingSlash);
-      }
-    } else {
-      candidates.push(`/${normalized}`);
-    }
-
-    candidates.push('.');
-
-    return [...new Set(candidates)];
-  }
-
-  private buildRemotePath(dir: string, fileName: string): string {
-    if (dir === '.' || dir === '/') {
-      return fileName;
-    }
-    return `${dir}/${fileName}`;
-  }
-
-  private buildPublicFileUrl(remotePath: string): string {
+  private buildPublicFileUrl(fileName: string): string {
     const baseUrl = env.FTP_PUBLIC_URL!.replace(/\/+$/, '');
-
-    // If the remotePath includes the FTP_REMOTE_DIR, we need to extract just the filename
-    // to avoid duplicate path segments in the public URL
-    const remoteDir = env.FTP_REMOTE_DIR?.replace(/\/+$/, '') || '';
-    let pathToAppend = remotePath;
-
-    // Strip the remote directory from the path if it's included
-    if (remoteDir && remotePath.startsWith(remoteDir + '/')) {
-      pathToAppend = remotePath.substring(remoteDir.length);
-    } else if (remoteDir && remotePath.startsWith(remoteDir.replace(/^\//, '') + '/')) {
-      // Handle case where remotePath doesn't have leading slash
-      pathToAppend = '/' + remotePath.substring(remoteDir.replace(/^\//, '').length + 1);
-    }
-
-    const normalizedPath = pathToAppend.startsWith('/') ? pathToAppend : `/${pathToAppend}`;
-    return `${baseUrl}${normalizedPath}`;
-  }
-
-  private isDirectoryFallbackError(message: string): boolean {
-    return (
-      message.includes('550') ||
-      message.toLowerCase().includes('failed to change directory') ||
-      message.toLowerCase().includes('no such file or directory')
-    );
+    // Simply append the filename to the base URL
+    // Example: https://cdn.example.com/1234567890-uuid.jpg
+    return `${baseUrl}/${fileName}`;
   }
 
   /**

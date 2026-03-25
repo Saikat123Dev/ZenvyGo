@@ -1,4 +1,5 @@
 import { ftpService } from '../../shared/services/ftp.service';
+import { cacheService } from '../../shared/cache/cache.service';
 import {
     BadRequestError,
     NotFoundError,
@@ -57,8 +58,18 @@ class DocumentService {
   private readonly repository = new DocumentRepository();
 
   async listByUser(userId: string): Promise<DocumentSummary[]> {
+    const cacheKey = `docs:list:${userId}`;
+    const cached = await cacheService.get<DocumentSummary[]>('CACHE', cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const records = await this.repository.findByUserId(userId);
-    return records.map((r) => this.toSummary(r));
+    const result = records.map((r) => this.toSummary(r));
+
+    // Cache for 2 minutes
+    await cacheService.set('CACHE', cacheKey, result, 120);
+    return result;
   }
 
   async getById(userId: string, documentId: string): Promise<DocumentSummary> {
@@ -137,7 +148,17 @@ class DocumentService {
       throw new Error('Failed to create document');
     }
 
+    // Invalidate list cache
+    await this.invalidateUserCache(userId);
+
     return this.toSummary(created);
+  }
+
+  /**
+   * Invalidate all document cache entries for a user
+   */
+  private async invalidateUserCache(userId: string): Promise<void> {
+    await cacheService.delete('CACHE', `docs:list:${userId}`);
   }
 
   async update(
@@ -157,6 +178,9 @@ class DocumentService {
       throw new Error('Failed to update document');
     }
 
+    // Invalidate list cache
+    await this.invalidateUserCache(userId);
+
     return this.toSummary(updated);
   }
 
@@ -168,6 +192,9 @@ class DocumentService {
 
     // Soft delete from database
     await this.repository.softDelete(documentId);
+
+    // Invalidate list cache
+    await this.invalidateUserCache(userId);
 
     // Optionally delete from FTP (commented out for now - keep for audit trail)
     // await ftpService.deleteFile(existing.file_url);
@@ -189,6 +216,9 @@ class DocumentService {
     if (!updated) {
       throw new Error('Failed to update document');
     }
+
+    // Invalidate list cache
+    await this.invalidateUserCache(userId);
 
     return this.toSummary(updated);
   }

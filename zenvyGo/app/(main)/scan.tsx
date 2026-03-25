@@ -226,7 +226,7 @@ export default function ScanScreen() {
             <QrCode size={54} color="#FFFFFF" strokeWidth={1.5} />
             <Text style={styles.permissionTitle}>Camera permission required</Text>
             <Text style={styles.permissionCopy}>
-              Grant camera access to scan QR tags directly, or paste the token manually below.
+              Grant camera access to scan QR tags directly, or paste the QR token/URL manually below.
             </Text>
             <Button fullWidth={false} onPress={() => requestPermission()}>
               Grant Camera Access

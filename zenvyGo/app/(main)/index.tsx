@@ -48,7 +48,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   useActiveVehicles,
   useActiveTags,
-  useAppStore,
+  useHomeScreenData,
   useOpenSessions,
   useUnreadAlerts,
 } from '@/store/app-store';
@@ -62,7 +62,7 @@ export default function HomeScreen() {
 
   // Global store with selectors
   const { vehicles, alerts, sessions, isLoading, isRefreshing, error, fetchAll, updateSession } =
-    useAppStore();
+    useHomeScreenData();
   const activeVehicles = useActiveVehicles();
   const activeTags = useActiveTags();
   const unreadAlerts = useUnreadAlerts();

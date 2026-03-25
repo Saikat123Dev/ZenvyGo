@@ -43,7 +43,7 @@ import { LANGUAGE_OPTIONS } from '@/lib/domain';
 import { formatLanguage, maskEmail } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
-import { useAppStore, useOpenSessions, useUnreadAlerts } from '@/store/app-store';
+import { useProfileScreenData, useOpenSessions, useUnreadAlerts } from '@/store/app-store';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -54,7 +54,7 @@ export default function ProfileScreen() {
   const { themePreference, setThemePreference } = useThemePreference();
 
   // Global store
-  const { vehicles, tags, isLoading, fetchAll } = useAppStore();
+  const { vehicles, tags, isLoading, fetchAll } = useProfileScreenData();
   const unreadAlerts = useUnreadAlerts();
   const openSessions = useOpenSessions();
 

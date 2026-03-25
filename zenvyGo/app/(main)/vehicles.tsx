@@ -47,7 +47,7 @@ import {
   formatTagState,
   formatVehicleName,
 } from '@/lib/format';
-import { useAppStore } from '@/store/app-store';
+import { useVehiclesScreenData } from '@/store/app-store';
 
 interface VehicleFormState {
   plateNumber: string;
@@ -98,7 +98,6 @@ export default function VehiclesScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
 
-  // Global store
   const {
     vehicles,
     tags,
@@ -110,7 +109,7 @@ export default function VehiclesScreen() {
     removeVehicle,
     addTag,
     updateTag,
-  } = useAppStore();
+  } = useVehiclesScreenData();
 
   const [submittingVehicle, setSubmittingVehicle] = useState(false);
   const [submittingEmergency, setSubmittingEmergency] = useState(false);
@@ -886,7 +885,7 @@ export default function VehiclesScreen() {
   );
 }
 
-function VehicleEditorModal({
+const VehicleEditorModal = React.memo(function VehicleEditorModal({
   children,
   colors,
   footer,
@@ -939,7 +938,7 @@ function VehicleEditorModal({
       </View>
     </Modal>
   );
-}
+});
 
 const ActionChip = React.memo(function ActionChip({
   colors,

@@ -49,7 +49,7 @@ export async function initializeApplication() {
   app.use(corsMiddleware);
   app.use(helmetMiddleware);
   app.use(compressionMiddleware); // Compress responses
-  app.use(cacheControlMiddleware(300)); // Cache-Control headers (5 minutes)
+  app.use(cacheControlMiddleware(60)); // Cache-Control headers (1 minute)
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
 

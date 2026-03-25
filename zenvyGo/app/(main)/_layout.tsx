@@ -12,11 +12,11 @@ export default function MainTabsLayout() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const isAndroid = Platform.OS === 'android';
-  const tabBarHeight = componentHeights.tabBar + (isAndroid ? 0 : insets.bottom);
+  const bottomInset = isAndroid ? Math.max(insets.bottom, spacing.default) : insets.bottom;
+  const tabBarHeight = componentHeights.tabBar + bottomInset;
 
   return (
     <Tabs
-      safeAreaInsets={isAndroid ? { bottom: 0 } : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.tabIconSelected,
@@ -25,10 +25,10 @@ export default function MainTabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.tabBackground,
           height: tabBarHeight,
-          paddingBottom: isAndroid ? spacing.tight : insets.bottom,
+          paddingBottom: bottomInset,
           paddingTop: spacing.tight,
-          marginBottom: isAndroid ? insets.bottom : 0,
-          borderTopWidth: 0,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.tabBorder,
           ...Platform.select({
             ios: {
               ...shadows.default,
@@ -107,6 +107,12 @@ export default function MainTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="documents"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="about"
         options={{
           href: null,
@@ -139,13 +145,13 @@ interface TabIconProps {
   focused: boolean;
 }
 
-function TabIcon({ children, focused }: TabIconProps) {
+const TabIcon = React.memo(function TabIcon({ children, focused }: TabIconProps) {
   return (
     <View style={styles.tabIconContainer}>
       {children}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   tabIconContainer: {

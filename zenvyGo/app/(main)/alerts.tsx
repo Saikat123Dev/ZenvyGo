@@ -25,7 +25,7 @@ import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type AlertItem } from '@/lib/api';
 import { formatDateLabel, formatRelativeTime } from '@/lib/format';
-import { useAppStore, useUnreadAlerts } from '@/store/app-store';
+import { useAlertsScreenData, useUnreadAlerts } from '@/store/app-store';
 
 interface AlertSection {
   title: string;
@@ -38,7 +38,7 @@ export default function AlertsScreen() {
   const insets = useSafeAreaInsets();
 
   // Global store
-  const { alerts, isLoading, isRefreshing, fetchAlerts, markAlertRead, markAllAlertsRead } = useAppStore();
+  const { alerts, isLoading, isRefreshing, fetchAlerts, markAlertRead, markAllAlertsRead } = useAlertsScreenData();
   const unreadAlerts = useUnreadAlerts();
 
   // Load data on focus

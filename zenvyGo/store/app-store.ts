@@ -254,3 +254,56 @@ export const useOpenSessions = () =>
 
 export const useVehicleTags = (vehicleId: string) =>
   useAppStore(useShallow((state) => state.tags.filter((t) => t.vehicleId === vehicleId)));
+
+// Screen-specific selectors to prevent unnecessary re-renders
+export const useHomeScreenData = () =>
+  useAppStore(
+    useShallow((state) => ({
+      vehicles: state.vehicles,
+      alerts: state.alerts,
+      sessions: state.sessions,
+      isLoading: state.isLoading,
+      isRefreshing: state.isRefreshing,
+      error: state.error,
+      fetchAll: state.fetchAll,
+      updateSession: state.updateSession,
+    })),
+  );
+
+export const useVehiclesScreenData = () =>
+  useAppStore(
+    useShallow((state) => ({
+      vehicles: state.vehicles,
+      tags: state.tags,
+      isLoading: state.isLoading,
+      isRefreshing: state.isRefreshing,
+      fetchVehiclesAndTags: state.fetchVehiclesAndTags,
+      addVehicle: state.addVehicle,
+      updateVehicle: state.updateVehicle,
+      removeVehicle: state.removeVehicle,
+      addTag: state.addTag,
+      updateTag: state.updateTag,
+    })),
+  );
+
+export const useAlertsScreenData = () =>
+  useAppStore(
+    useShallow((state) => ({
+      alerts: state.alerts,
+      isLoading: state.isLoading,
+      isRefreshing: state.isRefreshing,
+      fetchAlerts: state.fetchAlerts,
+      markAlertRead: state.markAlertRead,
+      markAllAlertsRead: state.markAllAlertsRead,
+    })),
+  );
+
+export const useProfileScreenData = () =>
+  useAppStore(
+    useShallow((state) => ({
+      vehicles: state.vehicles,
+      tags: state.tags,
+      isLoading: state.isLoading,
+      fetchAll: state.fetchAll,
+    })),
+  );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -39,6 +39,17 @@ import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
 
+const THEME_OPTIONS: Array<{
+  value: ThemePreference;
+  label: string;
+  description: string;
+  icon: typeof Sun;
+}> = [
+  { value: 'system', label: 'System', description: 'Match your device settings', icon: Smartphone },
+  { value: 'light', label: 'Light', description: 'Bright and clean interface', icon: Sun },
+  { value: 'dark', label: 'Dark', description: 'Easy on the eyes at night', icon: Moon },
+];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -63,18 +74,7 @@ export default function SettingsScreen() {
     themePreference === 'light' ? Sun : themePreference === 'dark' ? Moon : Smartphone;
   const ThemeIcon = themeIcon;
 
-  const themeOptions: Array<{
-    value: ThemePreference;
-    label: string;
-    description: string;
-    icon: typeof Sun;
-  }> = [
-    { value: 'system', label: 'System', description: 'Match your device settings', icon: Smartphone },
-    { value: 'light', label: 'Light', description: 'Bright and clean interface', icon: Sun },
-    { value: 'dark', label: 'Dark', description: 'Easy on the eyes at night', icon: Moon },
-  ];
-
-  const handleCheckForUpdates = async () => {
+  const handleCheckForUpdates = useCallback(async () => {
     try {
       setIsCheckingUpdate(true);
       const update = await Updates.checkForUpdateAsync();
@@ -105,9 +105,9 @@ export default function SettingsScreen() {
     } finally {
       setIsCheckingUpdate(false);
     }
-  };
+  }, []);
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = useCallback(() => {
     Alert.alert(
       'Delete Account',
       'This action cannot be undone. All your data including vehicles, tags, and contact history will be permanently deleted.',
@@ -125,7 +125,7 @@ export default function SettingsScreen() {
         },
       ],
     );
-  };
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -413,7 +413,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.themeOptions}>
-                {themeOptions.map((option) => {
+                {THEME_OPTIONS.map((option) => {
                   const selected = option.value === themePreference;
                   const Icon = option.icon;
                   return (

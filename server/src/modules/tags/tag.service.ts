@@ -148,11 +148,9 @@ class TagService {
   }
 
   private async toResolvedTag(record: TagWithOwnerRecord): Promise<ResolvedTag> {
-    // Fetch driver info
-    const user = await userService.getById(record.owner_id).catch(() => null);
-
-    // Fetch visible documents for driver (user-level and vehicle-level)
-    const [userDocuments, vehicleDocuments] = await Promise.all([
+    // Fetch driver info and documents in parallel
+    const [user, userDocuments, vehicleDocuments] = await Promise.all([
+      userService.getById(record.owner_id).catch(() => null),
       documentService.getVisibleDocumentsForUser(record.owner_id),
       documentService.getVisibleDocumentsForVehicle(record.vehicle_id),
     ]);

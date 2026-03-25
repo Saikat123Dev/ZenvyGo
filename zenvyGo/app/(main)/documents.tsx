@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import {
   Settings2,
   Image as ImageIcon,
   File,
+  AlertCircle,
 } from 'lucide-react-native';
 import { Button, Card, Input, Badge } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
@@ -39,6 +40,12 @@ import { apiService, type DriverDocument, type Vehicle } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { useAppStore } from '@/store/app-store';
+import {
+  compressImage,
+  validateImageSize,
+  formatFileSize,
+  getOptimalCompressionOptions,
+} from '@/lib/image-utils';
 
 type DocumentTypeOption = {
   value: 'driving_license' | 'rc' | 'puc' | 'insurance' | 'other';
@@ -69,6 +76,8 @@ export default function DocumentsScreen() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DriverDocument | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const lastFetchedAtRef = useRef<number>(0);
+  const CACHE_VALIDITY_MS = 30000;
 
   // Upload form state
   const [selectedDocType, setSelectedDocType] = useState<DocumentTypeOption>(documentTypes[0]);
@@ -85,7 +94,12 @@ export default function DocumentsScreen() {
   const [docTypePickerVisible, setDocTypePickerVisible] = useState(false);
   const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
+    // Skip fetch if cache is still valid
+    if (!force && Date.now() - lastFetchedAtRef.current < CACHE_VALIDITY_MS && documents.length > 0) {
+      return;
+    }
+
     setLoading(true);
     setLoadError(null);
 
@@ -94,6 +108,7 @@ export default function DocumentsScreen() {
 
       if (res.success && res.data) {
         setDocuments(res.data);
+        lastFetchedAtRef.current = Date.now();
       } else {
         const message = res.error || 'Failed to load documents';
         setLoadError(message);
@@ -106,7 +121,13 @@ export default function DocumentsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [documents.length]);
+
+  const onRefresh = useCallback(() => {
+    setLoading(true);
+    // Force refresh bypassing the 30-second cache
+    loadData(true).finally(() => setLoading(false));
+  }, [loadData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -647,7 +668,7 @@ export default function DocumentsScreen() {
   );
 }
 
-function DocumentCard({
+const DocumentCard = React.memo(function DocumentCard({
   document,
   colors,
   onToggleVisibility,
@@ -704,7 +725,7 @@ function DocumentCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

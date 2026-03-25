@@ -13,7 +13,9 @@ const configuredAppEnv =
   (Constants.expoConfig?.extra?.appEnv as string | undefined) ??
   'development';
 
-const configuredLogLevel ="debug" as string;
+const configuredLogLevel =
+  process.env.EXPO_PUBLIC_LOG_LEVEL ??
+  (configuredAppEnv === 'production' ? 'warn' : 'debug');
 
 export const API_URL = configuredApiUrl.replace(/\/$/, '');
 export const APP_ENV = configuredAppEnv;

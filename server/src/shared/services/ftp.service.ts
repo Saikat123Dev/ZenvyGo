@@ -248,7 +248,21 @@ class FtpService {
 
   private buildPublicFileUrl(remotePath: string): string {
     const baseUrl = env.FTP_PUBLIC_URL!.replace(/\/+$/, '');
-    const normalizedPath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+
+    // If the remotePath includes the FTP_REMOTE_DIR, we need to extract just the filename
+    // to avoid duplicate path segments in the public URL
+    const remoteDir = env.FTP_REMOTE_DIR?.replace(/\/+$/, '') || '';
+    let pathToAppend = remotePath;
+
+    // Strip the remote directory from the path if it's included
+    if (remoteDir && remotePath.startsWith(remoteDir + '/')) {
+      pathToAppend = remotePath.substring(remoteDir.length);
+    } else if (remoteDir && remotePath.startsWith(remoteDir.replace(/^\//, '') + '/')) {
+      // Handle case where remotePath doesn't have leading slash
+      pathToAppend = '/' + remotePath.substring(remoteDir.replace(/^\//, '').length + 1);
+    }
+
+    const normalizedPath = pathToAppend.startsWith('/') ? pathToAppend : `/${pathToAppend}`;
     return `${baseUrl}${normalizedPath}`;
   }
 

@@ -200,7 +200,7 @@ export default function HelpScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.large }]}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }]}>
 
         {/* Contact Options */}
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('help.contact')}</Text>

@@ -165,7 +165,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + spacing.large },
+          { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 },
         ]}>
         {/* Gradient Header with User Info */}
         <LinearGradient

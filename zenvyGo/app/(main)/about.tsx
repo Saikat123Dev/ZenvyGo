@@ -79,7 +79,7 @@ export default function AboutScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.large }]}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }]}>
 
         {/* App Info Card */}
         <Card style={styles.appCard}>

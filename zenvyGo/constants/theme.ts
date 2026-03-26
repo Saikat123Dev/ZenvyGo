@@ -3,18 +3,18 @@
  * A professional, lightweight design system for React Native with NativeWind
  */
 
-// Brand Blue Scale (Premium Electric Cyan & Deep Navy)
+// Brand Scale (Vibrant Violet)
 export const brand: Record<number, string> = {
-  50: '#F0FBFF',
-  100: '#E0F8FF',
-  200: '#BAEFFF',
-  300: '#7CE0FF',
-  400: '#00F0FF', // neon cyan light
-  500: '#00E5FF', // vibrant neon cyan
-  600: '#00D1FF',
-  700: '#0070DE',
-  800: '#0058B6',
-  900: '#0A2540',  // deep sophisticated navy
+  50: '#F5F3FF',
+  100: '#EDE9FE',
+  200: '#DDD6FE',
+  300: '#C4B5FD',
+  400: '#A78BFA',
+  500: '#8B5CF6',
+  600: '#7C3AED',
+  700: '#6D28D9',
+  800: '#5B21B6',
+  900: '#4C1D95',
 };
 
 // Slate/Neutral Scale (Refined Aesthetic Dark Mode)
@@ -94,6 +94,7 @@ export interface ThemeColors {
   warning: string;
   warningBackground: string;
   danger: string;
+  dangerLighter: string;
   dangerBackground: string;
   info: string;
   infoBackground: string;
@@ -152,6 +153,7 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
     warning: semantic.warning,
     warningBackground: semantic.warningLight,
     danger: semantic.danger,
+    dangerLighter: '#FEF2F2',
     dangerBackground: semantic.dangerLight,
     info: semantic.info,
     infoBackground: semantic.infoLight,
@@ -163,57 +165,58 @@ export const Colors: { light: ThemeColors; dark: ThemeColors } = {
     overlayLight: 'rgba(0, 0, 0, 0.15)',
   },
   dark: {
-    background: '#000000', // OLED black
-    backgroundSecondary: '#090A0C', // Deep charcoal
-    surface: slate[900], // Solid deep gray
-    surfaceSecondary: slate[800], // Solid mid-dark gray
+    background: '#040405', // Deep midnight
+    backgroundSecondary: '#0E0E12', // Slightly lighter midnight
+    surface: '#15151A', // Rich dark surface
+    surfaceSecondary: '#1C1C24', // Elevated surface
     text: '#FFFFFF',
     textSecondary: '#A1A1AA',
     textMuted: '#71717A',
     textInverse: '#000000',
-    primary: brand[500], // Neon cyan focus point
+    primary: brand[500], // Vibrant violet focus point
     primaryLight: brand[400],
-    primaryLighter: slate[800], // Solid instead of translucent cyan
+    primaryLighter: '#1C1C24', // Solid elevated tint
     primaryDark: brand[600],
-    border: slate[800], // Solid border
-    borderLight: slate[900], 
+    border: '#272730', // Harmonized border
+    borderLight: '#1C1C24', 
     borderFocus: brand[400],
     tabIconDefault: '#71717A',
     tabIconSelected: brand[500],
-    tabBackground: '#000000', // Solid background 
-    tabBorder: slate[800],
-    headerBackground: '#000000',
+    tabBackground: '#040405', // Solid midnight background 
+    tabBorder: '#272730',
+    headerBackground: '#040405',
     headerText: '#FFFFFF',
-    cardBackground: slate[900], // Solid cards
-    cardBorder: slate[800],
-    inputBackground: slate[900], // Solid inputs
-    inputBorder: slate[700],
+    cardBackground: '#15151A', // Solid cards
+    cardBorder: '#272730',
+    inputBackground: '#15151A', // Solid inputs
+    inputBorder: '#272730',
     inputBorderFocus: brand[500],
     inputPlaceholder: '#71717A',
     inputError: semantic.danger,
-    inputErrorBackground: slate[900],
+    inputErrorBackground: '#15151A',
     buttonPrimary: brand[500],
-    buttonPrimaryText: '#000000', // high contrast neon
-    buttonSecondary: slate[800],
+    buttonPrimaryText: '#FFFFFF', // White text on violet
+    buttonSecondary: '#1C1C24',
     buttonSecondaryText: '#FFFFFF',
-    buttonSecondaryBorder: slate[700],
+    buttonSecondaryBorder: '#272730',
     buttonDanger: semantic.danger,
     buttonDangerText: '#FFFFFF',
-    buttonDisabled: slate[800],
+    buttonDisabled: '#1C1C24',
     buttonDisabledText: '#71717A',
     tint: brand[500],
     success: semantic.success,
-    successBackground: slate[900],
+    successBackground: '#15151A',
     warning: semantic.warning,
-    warningBackground: slate[900],
+    warningBackground: '#15151A',
     danger: semantic.danger,
-    dangerBackground: slate[900],
+    dangerLighter: 'rgba(239, 68, 68, 0.12)',
+    dangerBackground: '#15151A',
     info: semantic.info,
-    infoBackground: slate[900],
-    alertUnreadBackground: slate[800],
-    alertUnreadBorder: slate[700],
-    alertReadBackground: slate[900],
-    alertReadBorder: slate[800],
+    infoBackground: '#15151A',
+    alertUnreadBackground: '#1C1C24',
+    alertUnreadBorder: '#272730',
+    alertReadBackground: '#15151A',
+    alertReadBorder: '#272730',
     overlay: 'rgba(0, 0, 0, 0.85)', // Keep dimming for modals
     overlayLight: 'rgba(0, 0, 0, 0.7)',
   },

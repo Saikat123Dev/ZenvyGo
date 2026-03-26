@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,13 +10,16 @@ import {
   TouchableOpacity,
   View,
   Linking,
+  InteractionManager,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Flashlight, QrCode, ScanLine, ShieldCheck, FileText, X, ChevronRight, File } from 'lucide-react-native';
 import { Badge, Button, Input, Card } from '@/components/ui';
-import { Colors, borderRadius, spacing } from '@/constants/theme';
+import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type ContactSession, type ResolvedTag } from '@/lib/api';
 import { CONTACT_CHANNEL_OPTIONS, CONTACT_REASON_OPTIONS } from '@/lib/domain';
@@ -49,6 +52,27 @@ export default function ScanScreen() {
   const [message, setMessage] = useState('');
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<{ name: string; fileUrl: string; type: string; expiresAt: string | null } | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let task: ReturnType<typeof InteractionManager.runAfterInteractions>;
+      
+      // When the screen comes into focus, wait for the JS thread/animations to idle
+      task = InteractionManager.runAfterInteractions(() => {
+        // A slight timeout guarantees the navigation slide animation completes fully before the heavy camera initialization
+        setTimeout(() => {
+          setIsCameraReady(true);
+        }, 100);
+      });
+
+      return () => {
+        // Clean up when screen loses focus to save battery and memory
+        setIsCameraReady(false);
+        if (task) task.cancel();
+      };
+    }, [])
+  );
 
   // Refs for debouncing - using refs to avoid state update delays
   const lastScannedTokenRef = useRef<string | null>(null);
@@ -164,84 +188,95 @@ export default function ScanScreen() {
   }, []);
 
   const hasCameraPermission = permission?.granted ?? false;
-  const shouldShowCamera = hasCameraPermission && !resolvedTag && !createdSession;
+  const shouldShowCamera = hasCameraPermission && isCameraReady && !resolvedTag && !createdSession;
 
   return (
-    <View style={[styles.container, { backgroundColor: '#03111F' }]}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.section }]}>
-        <View>
-          <Text style={styles.headerTitle}>{t('scan.title')}</Text>
-          <Text style={styles.headerSubtitle}>
-            {t('scan.subtitle')}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => setFlashOn((current) => !current)}
-          style={[
-            styles.flashButton,
-            { backgroundColor: flashOn ? 'rgba(59,130,246,0.28)' : 'rgba(255,255,255,0.12)' },
-          ]}>
-          <Flashlight size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.cameraSection}>
-        {permission === null ? (
+    <View style={[styles.container, { backgroundColor: '#000000' }]}>
+      {/* Background Layer: Camera or Placeholders */}
+      {permission === null ? (
+        <View style={styles.placeholderBg}>
           <ActivityIndicator size="large" color="#FFFFFF" />
-        ) : shouldShowCamera ? (
-          <View style={styles.cameraFrame}>
-            <CameraView
-              style={StyleSheet.absoluteFillObject}
-              facing="back"
-              enableTorch={flashOn}
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={handleBarcodeScanned}
-            />
-            <View style={styles.overlay}>
-              <View style={styles.scannerBox}>
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-                <View style={styles.scanLine}>
-                  <ScanLine size={220} color="rgba(96, 165, 250, 0.9)" />
-                </View>
-              </View>
-              {resolving && (
-                <View style={styles.scanningIndicator}>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.scanningText}>{t('scan.resolving')}</Text>
-                </View>
-              )}
+        </View>
+      ) : shouldShowCamera ? (
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          enableTorch={flashOn}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={handleBarcodeScanned}
+        />
+      ) : hasCameraPermission ? (
+        <Animated.View entering={FadeIn.duration(300)} style={styles.placeholderBg}>
+          <ShieldCheck size={72} color="rgba(255,255,255,0.2)" strokeWidth={1.5} />
+          <Text style={styles.resolvedPlaceholderText}>
+            {createdSession ? t('scan.requestSubmitted') : t('scan.tagResolved')}
+          </Text>
+        </Animated.View>
+      ) : (
+        <View style={styles.placeholderBg}>
+          <QrCode size={72} color="rgba(255,255,255,0.4)" strokeWidth={1.5} />
+          <Text style={styles.permissionTitle}>{t('scan.cameraRequired')}</Text>
+          <Text style={styles.permissionCopy}>{t('scan.cameraDesc')}</Text>
+          <Button fullWidth={false} onPress={() => requestPermission()}>
+            {t('scan.grantAccess')}
+          </Button>
+        </View>
+      )}
+
+      {/* Fullscreen Overlay for Scanner Lines */}
+      {shouldShowCamera && (
+        <View style={styles.scannerOverlay} pointerEvents="none">
+          <View style={styles.scannerBox}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
+            <View style={styles.scanLine}>
+              <ScanLine size={200} color="rgba(59, 130, 246, 0.9)" />
             </View>
           </View>
-        ) : hasCameraPermission ? (
-          // Camera hidden when tag resolved or session created
-          <Animated.View entering={FadeIn.duration(300)} style={styles.resolvedPlaceholder}>
-            <ShieldCheck size={54} color="rgba(255,255,255,0.3)" strokeWidth={1.5} />
-            <Text style={styles.resolvedPlaceholderText}>
-              {createdSession ? t('scan.requestSubmitted') : t('scan.tagResolved')}
-            </Text>
-          </Animated.View>
-        ) : (
-          <View style={styles.permissionCard}>
-            <QrCode size={54} color="#FFFFFF" strokeWidth={1.5} />
-            <Text style={styles.permissionTitle}>{t('scan.cameraRequired')}</Text>
-            <Text style={styles.permissionCopy}>
-              {t('scan.cameraDesc')}
-            </Text>
-            <Button fullWidth={false} onPress={() => requestPermission()}>
-              {t('scan.grantAccess')}
-            </Button>
-          </View>
-        )}
-      </View>
+          <Text style={styles.scanningInstructionText}>{t('scan.readyToScan')}</Text>
+          {resolving && (
+            <View style={styles.scanningIndicator}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.scanningText}>{t('scan.resolving')}</Text>
+            </View>
+          )}
+        </View>
+      )}
 
+      {/* Header Overlay */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.85)', 'rgba(0,0,0,0.4)', 'transparent']}
+        style={[styles.headerGradient, { paddingTop: insets.top + spacing.section }]}
+        pointerEvents="box-none">
+        <View style={styles.headerContent} pointerEvents="box-none">
+          <View pointerEvents="none">
+            <Text style={styles.headerTitle}>{t('scan.title')}</Text>
+            <Text style={styles.headerSubtitle}>{t('scan.subtitle')}</Text>
+          </View>
+          {shouldShowCamera && (
+            <TouchableOpacity
+              onPress={() => setFlashOn((current) => !current)}
+              style={[
+                styles.flashButton,
+                { backgroundColor: flashOn ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.2)' },
+              ]}>
+              <Flashlight size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </LinearGradient>
+
+      {/* Bottom Sheet */}
       <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + spacing.large }]}>
+          contentContainerStyle={[
+            styles.sheetContent, 
+            { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }
+          ]}>
           {createdSession ? (
             <Animated.View entering={FadeInDown.duration(300)}>
               <View style={styles.successIcon}>
@@ -252,15 +287,15 @@ export default function ScanScreen() {
                 {t('scan.requestLoggedDesc')}
               </Text>
               <View style={styles.metaChips}>
-                <Badge variant="warning">{formatReasonCode(createdSession.reasonCode)}</Badge>
-                <Badge variant="primary">{formatChannel(createdSession.requestedChannel)}</Badge>
+                <Badge variant="warning">{formatReasonCode(createdSession!.reasonCode)}</Badge>
+                <Badge variant="primary">{formatChannel(createdSession!.requestedChannel)}</Badge>
               </View>
               <Button onPress={resetFlow}>{t('scan.scanAnother')}</Button>
             </Animated.View>
           ) : resolvedTag ? (
             <Animated.View entering={FadeInDown.duration(300)}>
               {/* Driver Profile Section */}
-              {resolvedTag.driverProfile && (
+              {resolvedTag?.driverProfile && (
                 <View style={styles.driverProfileSection}>
                   {resolvedTag.driverProfile.profilePhotoUrl && (
                     <Image
@@ -272,7 +307,7 @@ export default function ScanScreen() {
                     {resolvedTag.driverProfile.name || t('scan.driver')}
                   </Text>
                   <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
-                    {resolvedTag.plateNumber}
+                    {resolvedTag!.plateNumber}
                   </Text>
 
                   {/* Driver Documents */}
@@ -319,7 +354,7 @@ export default function ScanScreen() {
               )}
 
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                {t('scan.contactOwner', { plate: resolvedTag.plateNumber })}
+                {t('scan.contactOwner', { plate: resolvedTag!.plateNumber })}
               </Text>
               <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
                 {t('scan.contactDesc')}
@@ -328,7 +363,7 @@ export default function ScanScreen() {
               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.reason')}</Text>
               <View style={styles.optionWrap}>
                 {CONTACT_REASON_OPTIONS.filter((option) =>
-                  resolvedTag.allowedReasonCodes.includes(option.value),
+                  resolvedTag!.allowedReasonCodes.includes(option.value),
                 ).map((option) => {
                   const selected = selectedReason === option.value;
                   return (
@@ -358,7 +393,7 @@ export default function ScanScreen() {
               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.channel')}</Text>
               <View style={styles.optionWrap}>
                 {CONTACT_CHANNEL_OPTIONS.filter((option) =>
-                  resolvedTag.allowedChannels.includes(option.value),
+                  resolvedTag!.allowedChannels.includes(option.value),
                 ).map((option) => {
                   const selected = selectedChannel === option.value;
                   return (
@@ -448,9 +483,9 @@ export default function ScanScreen() {
             </View>
             {previewDocument && (
               <ScrollView style={styles.previewBody}>
-                {previewDocument.fileUrl.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                {previewDocument!.fileUrl.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                   <Image
-                    source={{ uri: previewDocument.fileUrl }}
+                    source={{ uri: previewDocument!.fileUrl }}
                     style={styles.previewImage}
                     resizeMode="contain"
                   />
@@ -458,10 +493,10 @@ export default function ScanScreen() {
                   <View style={styles.pdfPreview}>
                     <File size={64} color={colors.primary} />
                     <Text style={[styles.pdfName, { color: colors.text }]}>
-                      {previewDocument.name}
+                      {previewDocument!.name}
                     </Text>
                     <Button
-                      onPress={() => Linking.openURL(previewDocument.fileUrl)}
+                      onPress={() => Linking.openURL(previewDocument!.fileUrl)}
                       style={{ marginTop: spacing.section }}>
                       {t('scan.openDocument')}
                     </Button>
@@ -479,10 +514,25 @@ export default function ScanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: 'relative',
   },
-  header: {
+  placeholderBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0B1B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xlarge,
+  },
+  headerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     paddingHorizontal: spacing.section,
-    paddingBottom: spacing.section,
+    paddingBottom: spacing.xlarge,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -494,88 +544,82 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 13,
-    lineHeight: 18,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 4,
-    maxWidth: 260,
+    maxWidth: 280,
   },
   flashButton: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.lg,
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraSection: {
-    flex: 1,
-    paddingHorizontal: spacing.section,
-    justifyContent: 'center',
-  },
-  cameraFrame: {
-    flex: 1,
-    borderRadius: borderRadius['2xl'],
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: '#0B1B30',
-  },
-  overlay: {
+  scannerOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 5,
+    paddingBottom: '35%', // Shift scanner up so it stays visually centered above the bottom sheet
   },
   scannerBox: {
-    width: 240,
-    height: 240,
+    width: 280,
+    height: 280,
     position: 'relative',
+  },
+  scanningInstructionText: {
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: spacing.xlarge,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
   corner: {
     position: 'absolute',
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     borderColor: '#FFFFFF',
   },
   topLeft: {
     top: 0,
     left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 16,
+    borderTopWidth: 5,
+    borderLeftWidth: 5,
+    borderTopLeftRadius: 24,
   },
   topRight: {
     top: 0,
     right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 16,
+    borderTopWidth: 5,
+    borderRightWidth: 5,
+    borderTopRightRadius: 24,
   },
   bottomLeft: {
     bottom: 0,
     left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 16,
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    borderBottomLeftRadius: 24,
   },
   bottomRight: {
     bottom: 0,
     right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 16,
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    borderBottomRightRadius: 24,
   },
   scanLine: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    top: '45%',
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   scanningIndicator: {
     position: 'absolute',
-    bottom: 40,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: spacing.section,
+    bottom: -60,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: spacing.large,
     paddingVertical: spacing.component,
     borderRadius: borderRadius.full,
     flexDirection: 'row',
@@ -584,47 +628,40 @@ const styles = StyleSheet.create({
   },
   scanningText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
-  resolvedPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0B1B30',
-    borderRadius: borderRadius['2xl'],
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
   resolvedPlaceholderText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 14,
-    marginTop: spacing.section,
-  },
-  permissionCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xlarge,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: spacing.large,
   },
   permissionTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    marginTop: spacing.section,
+    marginTop: spacing.large,
   },
   permissionCopy: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 14,
-    lineHeight: 20,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 15,
+    lineHeight: 22,
     marginTop: spacing.default,
-    marginBottom: spacing.large,
+    marginBottom: spacing.xlarge,
     textAlign: 'center',
   },
   sheet: {
-    borderTopLeftRadius: borderRadius['2xl'],
-    borderTopRightRadius: borderRadius['2xl'],
-    minHeight: 320,
-    maxHeight: '45%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    borderTopLeftRadius: borderRadius['3xl'],
+    borderTopRightRadius: borderRadius['3xl'],
+    maxHeight: '65%',
+    minHeight: 280,
+    ...shadows.lg,
   },
   sheetContent: {
     paddingHorizontal: spacing.card,
@@ -638,7 +675,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: spacing.default,
-    marginBottom: spacing.large,
+    marginBottom: spacing.xlarge * 1.5,
   },
   sectionLabel: {
     fontSize: 12,

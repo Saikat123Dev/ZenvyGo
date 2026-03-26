@@ -9,6 +9,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   finishAuthentication: (user: AuthUser) => void;
+  updateUser: (user: AuthUser) => void;
   refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -62,6 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       finishAuthentication(nextUser) {
         setUser(nextUser);
         setStatus('authenticated');
+      },
+      updateUser(nextUser) {
+        setUser(nextUser);
       },
       async refreshUser() {
         const response = await apiService.getCurrentUser();

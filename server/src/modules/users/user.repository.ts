@@ -1,6 +1,24 @@
 import type { ResultSetHeader } from 'mysql2';
 import { BaseRepository } from '../../shared/database/base.repository';
 
+export type UserRole = 'normal' | 'taxi';
+
+export interface DocumentVisibilitySettings {
+  driving_license: boolean;
+  rc: boolean;
+  puc: boolean;
+  insurance: boolean;
+  other: boolean;
+}
+
+export const DEFAULT_DOC_VISIBILITY: DocumentVisibilitySettings = {
+  driving_license: true,
+  rc: true,
+  puc: true,
+  insurance: true,
+  other: false,
+};
+
 export interface UserRecord {
   id: string;
   phone_ref: string | null;
@@ -9,6 +27,8 @@ export interface UserRecord {
   password_hash: string | null;
   email_verified: number;
   name: string | null;
+  role: UserRole;
+  document_visibility_settings: string | null; // JSON string in DB
   language: string;
   country: string;
   status: 'active' | 'inactive';
@@ -21,11 +41,16 @@ export class UserRepository extends BaseRepository {
     super('users');
   }
 
+  private static readonly SELECT_COLS = `
+    id, phone_ref, phone_last4, email, password_hash, email_verified,
+    name, role, document_visibility_settings, language, country,
+    status, created_at, updated_at
+  `;
+
   public async findById(id: string): Promise<UserRecord | null> {
     return this.queryOne<UserRecord>(
       `
-        SELECT id, phone_ref, phone_last4, email, password_hash, email_verified,
-               name, language, country, status, created_at, updated_at
+        SELECT ${UserRepository.SELECT_COLS}
         FROM users
         WHERE id = ?
         LIMIT 1
@@ -37,8 +62,7 @@ export class UserRepository extends BaseRepository {
   public async findByEmail(email: string): Promise<UserRecord | null> {
     return this.queryOne<UserRecord>(
       `
-        SELECT id, phone_ref, phone_last4, email, password_hash, email_verified,
-               name, language, country, status, created_at, updated_at
+        SELECT ${UserRepository.SELECT_COLS}
         FROM users
         WHERE email = ?
         LIMIT 1
@@ -50,8 +74,7 @@ export class UserRepository extends BaseRepository {
   public async findByPhoneRef(phoneRef: string): Promise<UserRecord | null> {
     return this.queryOne<UserRecord>(
       `
-        SELECT id, phone_ref, phone_last4, email, password_hash, email_verified,
-               name, language, country, status, created_at, updated_at
+        SELECT ${UserRepository.SELECT_COLS}
         FROM users
         WHERE phone_ref = ?
         LIMIT 1
@@ -71,9 +94,10 @@ export class UserRepository extends BaseRepository {
   }): Promise<void> {
     await this.query<ResultSetHeader>(
       `
-        INSERT INTO users (id, email, password_hash, email_verified, name, language, country,
+        INSERT INTO users (id, email, password_hash, email_verified, name, role,
+                          document_visibility_settings, language, country,
                           phone_ref, phone_last4, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, '', 'active')
+        VALUES (?, ?, ?, ?, ?, 'normal', NULL, ?, ?, NULL, '', 'active')
       `,
       [
         input.id,
@@ -137,6 +161,31 @@ export class UserRepository extends BaseRepository {
         WHERE id = ?
       `,
       [...params, userId],
+    );
+  }
+
+  public async updateRole(userId: string, role: UserRole): Promise<void> {
+    await this.query<ResultSetHeader>(
+      `
+        UPDATE users
+        SET role = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      [role, userId],
+    );
+  }
+
+  public async updateDocumentVisibilitySettings(
+    userId: string,
+    settings: DocumentVisibilitySettings,
+  ): Promise<void> {
+    await this.query<ResultSetHeader>(
+      `
+        UPDATE users
+        SET document_visibility_settings = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      [JSON.stringify(settings), userId],
     );
   }
 }

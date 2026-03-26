@@ -33,12 +33,16 @@ import {
   Trash2,
   Vibrate,
   X,
+  User,
+  Briefcase,
 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemePreference, useThemePreference } from '@/providers/ThemeProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { apiService, UserRole, DocumentVisibilitySettings } from '@/lib/api';
 
 const THEME_OPTIONS: Array<{
   value: ThemePreference;
@@ -51,6 +55,26 @@ const THEME_OPTIONS: Array<{
   { value: 'dark', labelKey: 'settings.themeDark', descriptionKey: 'settings.darkDesc', icon: Moon },
 ];
 
+const ROLE_OPTIONS: Array<{
+  value: UserRole;
+  labelKey: string;
+  descriptionKey: string;
+  icon: any;
+}> = [
+  { value: 'normal', labelKey: 'settings.normalRole', descriptionKey: 'settings.normalRoleDesc', icon: User },
+  { value: 'taxi', labelKey: 'settings.taxiRole', descriptionKey: 'settings.taxiRoleDesc', icon: Briefcase },
+];
+
+const DOC_TYPES: Array<{ key: keyof DocumentVisibilitySettings; labelKey: string }> = [
+  { key: 'driving_license', labelKey: 'settings.docTypeDrivingLicense' },
+  { key: 'rc', labelKey: 'settings.docTypeRc' },
+  { key: 'puc', labelKey: 'settings.docTypePuc' },
+  { key: 'insurance', labelKey: 'settings.docTypeInsurance' },
+  { key: 'other', labelKey: 'settings.docTypeOther' },
+];
+
+
+
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -58,12 +82,66 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { themePreference, setThemePreference } = useThemePreference();
   const { t } = useTranslation();
+  const { user, updateUser } = useAuth();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [roleModalVisible, setRoleModalVisible] = useState(false);
+  const [docSettingsLoading, setDocSettingsLoading] = useState(false);
+  const [docSettings, setDocSettings] = useState<DocumentVisibilitySettings | null>(
+    user?.documentVisibilitySettings || null
+  );
+
+  const handleRoleChange = async (newRole: UserRole) => {
+    if (user?.role === newRole) return;
+    try {
+      setIsUpdatingRole(true);
+      const res = await apiService.switchRole(newRole);
+      if (res.success && res.data) {
+        updateUser(res.data);
+      } else {
+        Alert.alert(t('common.error'), res.error || t('settings.roleSwitchError'));
+      }
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e?.message || t('settings.roleSwitchError'));
+    } finally {
+      setIsUpdatingRole(false);
+      setRoleModalVisible(false);
+    }
+  };
+
+  const handleDocSettingToggle = async (key: keyof DocumentVisibilitySettings, value: boolean) => {
+    if (!docSettings) return;
+    
+    // Optimistic update
+    const newSettings = { ...docSettings, [key]: value };
+    setDocSettings(newSettings);
+    
+    try {
+      setDocSettingsLoading(true);
+      const res = await apiService.updateDocumentSettings({ [key]: value });
+      if (res.success && res.data) {
+        setDocSettings(res.data);
+        if (user) {
+          updateUser({ ...user, documentVisibilitySettings: res.data });
+        }
+      } else {
+        // Revert
+        setDocSettings(docSettings);
+        Alert.alert(t('common.error'), res.error || t('settings.docSettingsError'));
+      }
+    } catch (e: any) {
+      setDocSettings(docSettings);
+      Alert.alert(t('common.error'), e?.message || t('settings.docSettingsError'));
+    } finally {
+      setDocSettingsLoading(false);
+    }
+  };
 
   const themeLabel =
     themePreference === 'system'
@@ -157,7 +235,7 @@ export default function SettingsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.large }]}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }]}>
 
         {/* Appearance Section */}
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.appearance')}</Text>
@@ -175,6 +253,67 @@ export default function SettingsScreen() {
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
           </TouchableOpacity>
+        </Card>
+
+        {/* Role & Documents Section */}
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('settings.roleAndDocuments')}</Text>
+        <Card style={styles.sectionCard} padding="none">
+          {/* Role Picker */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => setRoleModalVisible(true)}
+            style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+            <View style={[styles.settingsIcon, { backgroundColor: colors.primaryLighter }]}>
+               <Briefcase size={20} color={colors.primary} />
+            </View>
+            <View style={styles.settingsCopy}>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.userRole')}</Text>
+              <Text style={[styles.settingsValue, { color: colors.textSecondary }]}>
+                {user?.role === 'taxi' ? t('settings.taxiRole') : t('settings.normalRole')}
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          {/* My Documents Link */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => router.push('/(main)/documents' as any)}
+            style={[user?.role === 'taxi' ? styles.settingsRow : styles.settingsRowLast, { borderBottomColor: colors.border }]}>
+            <View style={[styles.settingsIcon, { backgroundColor: colors.successBackground }]}>
+               <FileText size={20} color={colors.success} />
+            </View>
+            <View style={styles.settingsCopy}>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.myDocuments')}</Text>
+              <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
+                {t('settings.myDocumentsHint')}
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          {/* Document Visibility Settings (Only if taxi) */}
+          {user?.role === 'taxi' && (
+            <View style={{ padding: spacing.card }}>
+               <Text style={[styles.settingsTitle, { color: colors.text, marginBottom: 4 }]}>{t('settings.documentVisibility')}</Text>
+               <Text style={[styles.settingsHint, { color: colors.textSecondary, marginBottom: spacing.card }]}>
+                 {t('settings.documentVisibilityHint')}
+               </Text>
+               
+               {DOC_TYPES.map((doc, idx) => (
+                 <View key={doc.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.component, borderBottomWidth: idx < DOC_TYPES.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                   <Text style={{ color: colors.text, fontSize: 15 }}>{t(doc.labelKey)}</Text>
+                   <Switch
+                     value={!!docSettings?.[doc.key]}
+                     onValueChange={(val) => handleDocSettingToggle(doc.key, val)}
+                     trackColor={{ false: colors.border, true: colors.primaryLight }}
+                     thumbColor={docSettings?.[doc.key] ? colors.primary : colors.textMuted}
+                     disabled={docSettingsLoading}
+                   />
+                 </View>
+               ))}
+            </View>
+          )}
         </Card>
 
         {/* Notifications Section */}
@@ -262,21 +401,6 @@ export default function SettingsScreen() {
               <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.terms')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
                 {t('settings.termsHint')}
-              </Text>
-            </View>
-            <ChevronRight size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => router.push('/(main)/documents' as any)}
-            style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
-            <View style={[styles.settingsIcon, { backgroundColor: colors.successBackground }]}>
-              <FileText size={20} color={colors.success} />
-            </View>
-            <View style={styles.settingsCopy}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.myDocuments')}</Text>
-              <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                {t('settings.myDocumentsHint')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />
@@ -426,6 +550,81 @@ export default function SettingsScreen() {
                         setThemePreference(option.value);
                         setThemeModalVisible(false);
                       }}
+                      style={[
+                        styles.themeOption,
+                        {
+                          backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
+                          borderColor: selected ? colors.primaryLight : colors.border,
+                        },
+                      ]}>
+                      <View
+                        style={[
+                          styles.themeIcon,
+                          {
+                            backgroundColor: colors.surface,
+                            borderColor: selected ? colors.primaryLight : colors.border,
+                          },
+                        ]}>
+                        <Icon size={22} color={selected ? colors.primary : colors.textSecondary} />
+                      </View>
+                      <View style={styles.themeCopy}>
+                        <Text
+                          style={[
+                            styles.themeLabel,
+                            { color: selected ? colors.primary : colors.text },
+                          ]}>
+                          {t(option.labelKey)}
+                        </Text>
+                        <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
+                          {t(option.descriptionKey)}
+                        </Text>
+                      </View>
+                      {selected && (
+                        <View style={[styles.checkmark, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.checkmarkText}>✓</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Role Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={roleModalVisible}
+        onRequestClose={() => !isUpdatingRole && setRoleModalVisible(false)}>
+        <View style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalWrapper}>
+            <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderCopy}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>{t('settings.userRole')}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => !isUpdatingRole && setRoleModalVisible(false)}
+                  disabled={isUpdatingRole}
+                  style={[styles.closeButton, { backgroundColor: colors.surfaceSecondary }]}>
+                  <X size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.themeOptions}>
+                {ROLE_OPTIONS.map((option) => {
+                  const selected = option.value === user?.role;
+                  const Icon = option.icon;
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      activeOpacity={0.85}
+                      disabled={isUpdatingRole}
+                      onPress={() => handleRoleChange(option.value)}
                       style={[
                         styles.themeOption,
                         {

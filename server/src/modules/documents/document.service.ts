@@ -7,6 +7,7 @@ import {
 } from '../../shared/utils/api-error';
 import { generateUUID } from '../../shared/utils/crypto';
 import { log } from '../../shared/utils/logger';
+import { userService } from '../users/user.service';
 import { DocumentRepository, type DocumentRecord } from './document.repository';
 import type { DocumentType } from './document.schemas';
 
@@ -223,9 +224,31 @@ class DocumentService {
     return this.toSummary(updated);
   }
 
+  private async filterVisibleRecords(records: DocumentRecord[], userId: string): Promise<DocumentRecord[]> {
+    if (records.length === 0) return [];
+    try {
+      const user = await userService.getById(userId);
+      // Only taxi role users can show documents to passengers
+      if (user.role !== 'taxi') {
+        return [];
+      }
+      
+      // Filter by the user's specific document visibility settings
+      const settings = user.documentVisibilitySettings;
+      return records.filter((r) => {
+        // e.g. driving_license evaluates to true/false in the settings object
+        return !!settings[r.document_type as keyof typeof settings];
+      });
+    } catch {
+      return []; // Secure fallback
+    }
+  }
+
   async getVisibleDocumentsForUser(userId: string): Promise<PublicDocumentView[]> {
     const records = await this.repository.findVisibleByUserId(userId);
-    return records.map((r) => ({
+    const visibleRecords = await this.filterVisibleRecords(records, userId);
+    
+    return visibleRecords.map((r) => ({
       type: r.document_type,
       name: r.document_name,
       fileUrl: r.file_url,
@@ -235,7 +258,16 @@ class DocumentService {
 
   async getVisibleDocumentsForVehicle(vehicleId: string): Promise<PublicDocumentView[]> {
     const records = await this.repository.findVisibleByVehicleId(vehicleId);
-    return records.map((r) => ({
+    if (records.length === 0) return [];
+    
+    // All documents for a vehicle belong to the same user
+    const firstRecord = records[0];
+    if (!firstRecord) return [];
+    
+    const userId = firstRecord.user_id;
+    const visibleRecords = await this.filterVisibleRecords(records, userId);
+    
+    return visibleRecords.map((r) => ({
       type: r.document_type,
       name: r.document_name,
       fileUrl: r.file_url,

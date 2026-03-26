@@ -610,7 +610,10 @@ export default function VehiclesScreen() {
           renderItem={renderVehicleCard}
           keyExtractor={keyExtractor}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }
+          ]}
           ListEmptyComponent={ListEmptyComponent}
           refreshControl={
             <RefreshControl

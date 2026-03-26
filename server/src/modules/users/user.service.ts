@@ -1,12 +1,22 @@
 import { NotFoundError } from '../../shared/utils/api-error';
 import { cacheService } from '../../shared/cache/cache.service';
-import { UserRepository, type UserRecord } from './user.repository';
+import {
+  UserRepository,
+  DEFAULT_DOC_VISIBILITY,
+  type UserRecord,
+  type UserRole,
+  type DocumentVisibilitySettings,
+} from './user.repository';
+
+export type { UserRole, DocumentVisibilitySettings };
 
 export interface User {
   id: string;
   email: string | null;
   emailVerified: boolean;
   name: string | null;
+  role: UserRole;
+  documentVisibilitySettings: DocumentVisibilitySettings;
   language: string;
   country: string;
   status: 'active' | 'inactive';
@@ -84,12 +94,56 @@ class UserService {
     return this.getById(userId);
   }
 
+  public async switchRole(userId: string, role: UserRole): Promise<User> {
+    await this.repository.updateRole(userId, role);
+    await cacheService.clearUserCache(userId);
+    return this.getById(userId);
+  }
+
+  public async getDocumentVisibilitySettings(userId: string): Promise<DocumentVisibilitySettings> {
+    const user = await this.getById(userId);
+    return user.documentVisibilitySettings;
+  }
+
+  public async updateDocumentVisibilitySettings(
+    userId: string,
+    settings: Partial<DocumentVisibilitySettings>,
+  ): Promise<DocumentVisibilitySettings> {
+    const current = await this.getDocumentVisibilitySettings(userId);
+    const merged: DocumentVisibilitySettings = { ...current, ...settings };
+    await this.repository.updateDocumentVisibilitySettings(userId, merged);
+    await cacheService.clearUserCache(userId);
+    return merged;
+  }
+
+  private parseDocVisibilitySettings(raw: string | null): DocumentVisibilitySettings {
+    if (!raw) {
+      return { ...DEFAULT_DOC_VISIBILITY };
+    }
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return {
+        driving_license: parsed.driving_license ?? DEFAULT_DOC_VISIBILITY.driving_license,
+        rc: parsed.rc ?? DEFAULT_DOC_VISIBILITY.rc,
+        puc: parsed.puc ?? DEFAULT_DOC_VISIBILITY.puc,
+        insurance: parsed.insurance ?? DEFAULT_DOC_VISIBILITY.insurance,
+        other: parsed.other ?? DEFAULT_DOC_VISIBILITY.other,
+      };
+    } catch {
+      return { ...DEFAULT_DOC_VISIBILITY };
+    }
+  }
+
   private toUser(record: UserRecord): User {
     return {
       id: record.id,
       email: record.email,
       emailVerified: record.email_verified === 1,
       name: record.name,
+      role: record.role ?? 'normal',
+      documentVisibilitySettings: this.parseDocVisibilitySettings(
+        record.document_visibility_settings,
+      ),
       language: record.language,
       country: record.country,
       status: record.status,

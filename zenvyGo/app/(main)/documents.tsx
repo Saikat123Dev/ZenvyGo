@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useRef, memo } from 'react';
+import React, { useCallback, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
   Switch,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,20 +33,19 @@ import {
   Image as ImageIcon,
   File,
   AlertCircle,
+  Briefcase,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/providers/AuthProvider';
 import { Button, Card, Input, Badge } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type DriverDocument, type Vehicle } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { useAppStore } from '@/store/app-store';
-import {
-  compressImage,
-  validateImageSize,
-  formatFileSize,
-  getOptimalCompressionOptions,
-} from '@/lib/image-utils';
+import { useVehicles } from '@/hooks/use-vehicles';
+import { useTags } from '@/hooks/use-tags';
+
 
 type DocumentTypeOption = {
   value: 'driving_license' | 'rc' | 'puc' | 'insurance' | 'other';
@@ -66,8 +66,11 @@ export default function DocumentsScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
+  const { t } = useTranslation();
 
-  const { vehicles, tags } = useAppStore();
+  const { data: vehicles = [] } = useVehicles();
+  const { data: tags = [] } = useTags();
 
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +96,7 @@ export default function DocumentsScreen() {
   } | null>(null);
   const [docTypePickerVisible, setDocTypePickerVisible] = useState(false);
   const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles'>('personal');
 
   const loadData = useCallback(async (force = false) => {
     // Skip fetch if cache is still valid
@@ -136,7 +140,7 @@ export default function DocumentsScreen() {
   );
 
   const groupedDocuments = useMemo(() => {
-    const personal = documents.filter((d) => d.documentType === 'driving_license' && !d.vehicleId);
+    const personal = documents.filter((d) => !d.vehicleId);
     const byVehicle = new Map<string, DriverDocument[]>();
 
     documents.forEach((doc) => {
@@ -302,6 +306,46 @@ export default function DocumentsScreen() {
     resetUploadForm();
   };
 
+  if (user?.role === 'normal') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <LinearGradient
+          colors={colorScheme === 'dark' ? ['#1E3A8A', '#0F172A'] : ['#1E3A8A', '#3B82F6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + spacing.component }]}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+              <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
+            </TouchableOpacity>
+            <View style={styles.headerCopy}>
+              <Text style={styles.headerTitle}>{t('documents.title') || 'My Documents'}</Text>
+              <Text style={styles.headerSubtitle}>{t('documents.subtitle') || 'Upload and manage driver documents'}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.section }}>
+          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.large }}>
+            <Briefcase size={48} color={colors.primary} />
+          </View>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: spacing.tight, textAlign: 'center', letterSpacing: -0.5 }}>
+            {t('settings.taxiModeRequired') || 'Taxi Mode Required'}
+          </Text>
+          <Text style={{ fontSize: 16, lineHeight: 24, color: colors.textSecondary, textAlign: 'center', marginBottom: 32, paddingHorizontal: spacing.section }}>
+            {t('settings.taxiModeRequiredDesc') || 'Switch to Taxi mode to upload and manage your driving documents.'}
+          </Text>
+          <Button 
+            onPress={() => router.push('/(main)/settings' as any)} 
+            leftIcon={<Settings2 size={18} color="#FFFFFF" />}
+            style={{ minWidth: 200 }}
+          >
+            {t('settings.enableTaxiMode') || 'Enable Taxi Mode'}
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -350,105 +394,151 @@ export default function DocumentsScreen() {
         </Card>
       )}
 
+      {/* Tab Switcher */}
+      {!loading && !loadError && (
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'personal' && styles.activeTab]}
+            onPress={() => setActiveTab('personal')}>
+            <Text style={[styles.tabText, activeTab === 'personal' && styles.activeTabText, { color: activeTab === 'personal' ? '#FFFFFF' : colors.textSecondary }]}>
+              Personal/Driver
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'vehicles' && styles.activeTab]}
+            onPress={() => setActiveTab('vehicles')}>
+            <Text style={[styles.tabText, activeTab === 'vehicles' && styles.activeTabText, { color: activeTab === 'vehicles' ? '#FFFFFF' : colors.textSecondary }]}>
+              Vehicle-wise
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Content */}
-      {loading ? (
+      {loading && documents.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : loadError ? (
+      ) : loadError && documents.length === 0 ? (
         <View style={styles.loadingContainer}>
           <Text style={[styles.emptyText, { color: colors.text }]}>Unable to load documents</Text>
           <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>{loadError}</Text>
-          <Button onPress={loadData} style={{ marginTop: spacing.section }}>
+          <Button onPress={() => loadData(true)} style={{ marginTop: spacing.section }}>
             Try Again
           </Button>
         </View>
       ) : (
-        <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: spacing.large }}>
-          {/* Personal Documents */}
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PERSONAL DOCUMENTS</Text>
-          <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
-            {groupedDocuments.personal.length === 0 ? (
-              <View style={styles.emptyState}>
-                <FileText size={32} color={colors.textMuted} />
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  No driving license uploaded
-                </Text>
-                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                  Upload your driving license to share with passengers
-                </Text>
-              </View>
-            ) : (
-              groupedDocuments.personal.map((doc) => (
-                <DocumentCard
-                  key={doc.id}
-                  document={doc}
-                  colors={colors}
-                  onToggleVisibility={() => handleToggleVisibility(doc)}
-                  onDelete={() => handleDelete(doc)}
-                  onPreview={() => handlePreview(doc)}
-                />
-              ))
-            )}
-          </Card>
-
-          {/* QR Code Section */}
-          {firstActiveTag && qrToken.length > 0 && (
+        <ScrollView 
+          style={styles.scrollContent} 
+          contentContainerStyle={{ paddingBottom: spacing.large }}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.primary} />
+          }>
+          {activeTab === 'personal' ? (
             <>
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MY DRIVER QR CODE</Text>
-              <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
-                <View style={styles.qrSection}>
-                  <View style={styles.qrCodeContainer}>
-                    <QRCode
-                      value={qrToken}
-                      size={180}
-                      backgroundColor="white"
-                      color={colors.text}
-                    />
+              {/* Personal Documents */}
+              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PERSONAL DOCUMENTS</Text>
+              <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large, padding: 0, overflow: 'hidden' }}>
+                {groupedDocuments.personal.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <FileText size={32} color={colors.textMuted} />
+                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                      No personal documents uploaded
+                    </Text>
+                    <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                      Upload your driving license or other identity documents
+                    </Text>
                   </View>
-                  <Text style={[styles.qrHint, { color: colors.textSecondary }]}>
-                    Passengers can scan this QR code to see your visible documents
-                  </Text>
-                </View>
+                ) : (
+                  groupedDocuments.personal.map((doc, index) => (
+                    <DocumentCard
+                      key={doc.id}
+                      document={doc}
+                      colors={colors}
+                      onToggleVisibility={() => handleToggleVisibility(doc)}
+                      onDelete={() => handleDelete(doc)}
+                      onPreview={() => handlePreview(doc)}
+                      isLast={index === groupedDocuments.personal.length - 1}
+                    />
+                  ))
+                )}
               </Card>
-            </>
-          )}
 
-          {/* Vehicle Documents */}
-          {activeVehicles.map((vehicle) => {
-            const vehicleDocs = groupedDocuments.byVehicle.get(vehicle.id) ?? [];
-            return (
-              <View key={vehicle.id}>
-                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-                  {vehicle.plateNumber} - {vehicle.make || ''} {vehicle.model || ''}
-                </Text>
-                <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
-                  {vehicleDocs.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <FileText size={32} color={colors.textMuted} />
-                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                        No documents for this vehicle
-                      </Text>
-                      <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                        Upload RC, PUC, or Insurance documents
+              {/* QR Code Section */}
+              {firstActiveTag && qrToken.length > 0 && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MY DRIVER QR CODE</Text>
+                  <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
+                    <View style={styles.qrSection}>
+                      <View style={styles.qrCodeContainer}>
+                        <QRCode
+                          value={qrToken}
+                          size={180}
+                          backgroundColor="#FFFFFF"
+                          color="#000000"
+                        />
+                      </View>
+                      <Text style={[styles.qrHint, { color: colors.textSecondary }]}>
+                        Passengers can scan this QR code to see your visible documents
                       </Text>
                     </View>
-                  ) : (
-                    vehicleDocs.map((doc) => (
-                      <DocumentCard
-                        key={doc.id}
-                        document={doc}
-                        colors={colors}
-                        onToggleVisibility={() => handleToggleVisibility(doc)}
-                        onDelete={() => handleDelete(doc)}
-                        onPreview={() => handlePreview(doc)}
-                      />
-                    ))
-                  )}
-                </Card>
-              </View>
-            );
-          })}
+                  </Card>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Vehicle Documents */}
+              {activeVehicles.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <AlertCircle size={32} color={colors.textMuted} />
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No active vehicles found</Text>
+                  <Button
+                    variant="ghost"
+                    onPress={() => router.push('/(main)/vehicles' as any)}
+                    style={{ marginTop: spacing.default }}>
+                    Manage Vehicles
+                  </Button>
+                </View>
+              ) : (
+                activeVehicles.map((vehicle) => {
+                  const vehicleDocs = groupedDocuments.byVehicle.get(vehicle.id) ?? [];
+                  return (
+                    <View key={vehicle.id}>
+                      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+                        {vehicle.plateNumber} - {vehicle.make || ''} {vehicle.model || ''}
+                      </Text>
+                      <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large, padding: 0, overflow: 'hidden' }}>
+                        {vehicleDocs.length === 0 ? (
+                          <View style={styles.emptyState}>
+                            <FileText size={32} color={colors.textMuted} />
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                              No documents for this vehicle
+                            </Text>
+                            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                              Upload RC, PUC, or Insurance documents
+                            </Text>
+                          </View>
+                        ) : (
+                          vehicleDocs.map((doc, index) => (
+                            <DocumentCard
+                              key={doc.id}
+                              document={doc}
+                              colors={colors}
+                              onToggleVisibility={() => handleToggleVisibility(doc)}
+                              onDelete={() => handleDelete(doc)}
+                              onPreview={() => handlePreview(doc)}
+                              isLast={index === vehicleDocs.length - 1}
+                            />
+                          ))
+                        )}
+                      </Card>
+                    </View>
+                  );
+                })
+              )}
+            </>
+          )}
         </ScrollView>
       )}
 
@@ -674,28 +764,65 @@ const DocumentCard = React.memo(function DocumentCard({
   onToggleVisibility,
   onDelete,
   onPreview,
+  isLast,
 }: {
   document: DriverDocument;
   colors: any;
   onToggleVisibility: () => void;
   onDelete: () => void;
   onPreview: () => void;
+  isLast?: boolean;
 }) {
+  const getStatusInfo = (doc: DriverDocument) => {
+    if (doc.status === 'rejected') return { label: 'Rejected', variant: 'danger' as const };
+    if (doc.status === 'pending') return { label: 'Pending', variant: 'warning' as const };
+    
+    if (doc.expiresAt) {
+      const expiryDate = new Date(doc.expiresAt);
+      const now = new Date();
+      const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) return { label: 'Expired', variant: 'danger' as const };
+      if (diffDays <= 30) return { label: 'Expiring Soon', variant: 'warning' as const };
+    }
+    
+    return { label: 'Verified', variant: 'success' as const };
+  };
+
+  const status = getStatusInfo(document);
+
   return (
-    <TouchableOpacity onPress={onPreview} style={[styles.docCard, { borderBottomColor: colors.border }]} activeOpacity={0.7}>
+    <TouchableOpacity 
+      onPress={onPreview} 
+      style={[
+        styles.docCard, 
+        !isLast && { borderBottomColor: colors.border, borderBottomWidth: 1 }
+      ]} 
+      activeOpacity={0.7}>
       <View style={styles.docMain}>
         <View style={[styles.docIcon, { backgroundColor: colors.surfaceSecondary }]}>
           <FileText size={22} color={colors.primary} />
         </View>
         <View style={styles.docInfo}>
           <Text style={[styles.docName, { color: colors.text }]}>{document.documentName}</Text>
-          <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
-            {document.expiresAt ? `Expires: ${new Date(document.expiresAt).toLocaleDateString()}` : 'No expiry date'}
-          </Text>
+          <View style={styles.docMetaRow}>
+            <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
+              {document.documentNumber ? `${document.documentNumber}` : 'No number'}
+            </Text>
+            <View style={[styles.dot, { backgroundColor: colors.textMuted }]} />
+            <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
+              {document.expiresAt ? `Exp: ${new Date(document.expiresAt).toLocaleDateString()}` : 'No expiry'}
+            </Text>
+          </View>
         </View>
-        <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'} style={styles.badgePremium}>
-          {document.isVisibleToPassenger ? 'Visible' : 'Hidden'}
-        </Badge>
+        <View style={styles.badgeColumn}>
+          <Badge variant={status.variant}>
+            {status.label}
+          </Badge>
+          <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'}>
+            {document.isVisibleToPassenger ? 'Public' : 'Private'}
+          </Badge>
+        </View>
       </View>
       <View style={styles.docActions}>
         <TouchableOpacity
@@ -869,64 +996,102 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   qrHint: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
-    paddingHorizontal: spacing.section,
-    lineHeight: 22,
+    paddingHorizontal: spacing.large,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(30, 58, 138, 0.05)',
+    marginHorizontal: spacing.section,
+    padding: 4,
+    borderRadius: borderRadius.lg,
+    marginTop: spacing.section,
+    marginBottom: spacing.tight,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: borderRadius.md,
+  },
+  activeTab: {
+    backgroundColor: '#1E3A8A',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activeTabText: {
+    fontWeight: '700',
   },
   docCard: {
-    paddingVertical: spacing.component,
-    paddingHorizontal: spacing.section,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: spacing.default,
   },
   docMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.component,
   },
   docIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.xl,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.component,
+    marginRight: spacing.default,
   },
   docInfo: {
     flex: 1,
-    justifyContent: 'center',
   },
   docName: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     marginBottom: 4,
-    letterSpacing: -0.3,
+  },
+  docMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   docMeta: {
-    fontSize: 14,
-    fontWeight: '500',
-    opacity: 0.8,
+    fontSize: 13,
   },
-  badgePremium: {
-    borderRadius: 12,
-    paddingHorizontal: 8,
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 10,
+  },
+  badgeColumn: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  statusBadge: {
+    // handled by Badge component variants
+  },
+  visibilityBadge: {
+    // handled by Badge component variants
   },
   docActions: {
     flexDirection: 'row',
-    gap: spacing.component,
+    marginTop: spacing.default,
+    gap: spacing.default,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.default,
-    paddingHorizontal: spacing.component,
-    borderRadius: 9999,
-    gap: 8,
+    paddingVertical: 8,
+    borderRadius: borderRadius.md,
+    gap: 6,
   },
   actionText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
   },
   modalBackdrop: {

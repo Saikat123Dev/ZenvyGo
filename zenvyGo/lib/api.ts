@@ -16,11 +16,23 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
+export type UserRole = 'normal' | 'taxi';
+
+export interface DocumentVisibilitySettings {
+  driving_license: boolean;
+  rc: boolean;
+  puc: boolean;
+  insurance: boolean;
+  other: boolean;
+}
+
 export interface AuthUser {
   id: string;
   email: string | null;
   emailVerified: boolean;
   name: string | null;
+  role: UserRole;
+  documentVisibilitySettings: DocumentVisibilitySettings;
   language: string;
   country: string;
   status: 'active' | 'inactive';
@@ -398,6 +410,20 @@ class ApiService {
     language?: 'en' | 'ar';
   }): Promise<ApiResponse<AuthUser>> {
     return this.patch<AuthUser>('/users/me', input);
+  }
+
+  async switchRole(role: UserRole): Promise<ApiResponse<AuthUser>> {
+    return this.patch<AuthUser>('/users/me/role', { role });
+  }
+
+  async getDocumentSettings(): Promise<ApiResponse<DocumentVisibilitySettings>> {
+    return this.get<DocumentVisibilitySettings>('/users/me/document-settings');
+  }
+
+  async updateDocumentSettings(
+    settings: Partial<DocumentVisibilitySettings>,
+  ): Promise<ApiResponse<DocumentVisibilitySettings>> {
+    return this.put<DocumentVisibilitySettings>('/users/me/document-settings', settings);
   }
 
   async listVehicles(): Promise<ApiResponse<Vehicle[]>> {

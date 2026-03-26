@@ -200,7 +200,10 @@ export default function AlertsScreen() {
           sections={sections}
           keyExtractor={keyExtractor}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }
+          ]}
           renderSectionHeader={renderSectionHeader}
           renderItem={renderItem}
           refreshControl={

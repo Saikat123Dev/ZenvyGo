@@ -21,18 +21,18 @@ module.exports = {
           800: '#1E293B',
           900: '#0F172A',
         },
-        // Premium Brand Color (Subtle Deep Blue/Black)
+        // Premium Brand Color (Vibrant Violet)
         brand: {
-          50: '#F6F8FA',
-          100: '#E0E7FF',
-          200: '#C7D2FE',
-          300: '#A5B4FC',
-          400: '#818CF8',
-          500: '#111827', // Crisp Modern Black-Blue
-          600: '#030712',
-          700: '#020617',
-          800: '#000000',
-          900: '#000000',
+          50: '#F5F3FF',
+          100: '#EDE9FE',
+          200: '#DDD6FE',
+          300: '#C4B5FD',
+          400: '#A78BFA',
+          500: '#8B5CF6',
+          600: '#7C3AED',
+          700: '#6D28D9',
+          800: '#5B21B6',
+          900: '#4C1D95',
         },
         warning: {
           light: '#FFFBEB',
@@ -55,9 +55,9 @@ module.exports = {
           tertiary: '#F4F4F5',
         },
         'surface-dark': {
-          primary: '#121212',
-          secondary: '#1C1C1E',
-          tertiary: '#2C2C2E',
+          primary: '#040405',
+          secondary: '#0E0E12',
+          tertiary: '#15151A',
         },
       },
       fontFamily: {

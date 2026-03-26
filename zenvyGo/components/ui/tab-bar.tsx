@@ -72,11 +72,11 @@ const TabBarItem = React.memo(({ routeName, isFocused, onPress, onLongPress, col
   // Premium minimal colors
   const activeColor = isDark ? '#FFFFFF' : '#0F172A';
   const inactiveColor = isDark ? '#71717A' : '#94A3B8';
-  
+
   if (isScanTab) {
     const scanBgColor = isDark ? '#FFFFFF' : '#0F172A';
     const scanIconColor = isDark ? '#000000' : '#FFFFFF';
-    
+
     // Scale on press for the central action button
     const animatedScanStyle = useAnimatedStyle(() => {
       const scale = interpolate(focusValue.value, [0, 1], [1, 0.95], Extrapolate.CLAMP);
@@ -127,10 +127,10 @@ const TabBarItem = React.memo(({ routeName, isFocused, onPress, onLongPress, col
       style={styles.tabItem}
       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
       <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
-        <Icon 
-          size={24} 
+        <Icon
+          size={24}
           color={iconColor}
-          strokeWidth={isFocused ? 2.5 : 2} 
+          strokeWidth={isFocused ? 2.5 : 2}
         />
       </Animated.View>
       <Animated.View style={[styles.dotIndicator, { backgroundColor: activeColor }, animatedDotStyle]} />
@@ -159,8 +159,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
     <View style={[styles.container, { bottom: paddingBottom }]}>...
       <View style={[
-        styles.tabBarWrapper, 
-        { 
+        styles.tabBarWrapper,
+        {
           backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
           borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
         },

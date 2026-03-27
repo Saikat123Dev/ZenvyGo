@@ -152,8 +152,7 @@ export default function OnboardingScreen() {
         <View style={styles.buttonContainer}>
           <Button
             onPress={handleNext}
-            variant="secondary"
-            style={styles.button}>
+            variant="primary">
             {currentIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
           </Button>
         </View>
@@ -262,9 +261,6 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginBottom: spacing.section,
-  },
-  button: {
-    backgroundColor: '#FFFFFF',
   },
   termsText: {
     fontSize: 12,

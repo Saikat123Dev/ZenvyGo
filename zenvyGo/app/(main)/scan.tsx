@@ -189,6 +189,7 @@ export default function ScanScreen() {
 
   const hasCameraPermission = permission?.granted ?? false;
   const shouldShowCamera = hasCameraPermission && isCameraReady && !resolvedTag && !createdSession;
+  const shouldShowBottomSheet = hasCameraPermission || Boolean(resolvedTag) || Boolean(createdSession);
 
   return (
     <View style={[styles.container, { backgroundColor: '#000000' }]}>
@@ -269,201 +270,203 @@ export default function ScanScreen() {
       </LinearGradient>
 
       {/* Bottom Sheet */}
-      <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[
-            styles.sheetContent, 
-            { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }
-          ]}>
-          {createdSession ? (
-            <Animated.View entering={FadeInDown.duration(300)}>
-              <View style={styles.successIcon}>
-                <ShieldCheck size={28} color={colors.success} />
-              </View>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.requestLogged')}</Text>
-              <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                {t('scan.requestLoggedDesc')}
-              </Text>
-              <View style={styles.metaChips}>
-                <Badge variant="warning">{formatReasonCode(createdSession!.reasonCode)}</Badge>
-                <Badge variant="primary">{formatChannel(createdSession!.requestedChannel)}</Badge>
-              </View>
-              <Button onPress={resetFlow}>{t('scan.scanAnother')}</Button>
-            </Animated.View>
-          ) : resolvedTag ? (
-            <Animated.View entering={FadeInDown.duration(300)}>
-              {/* Driver Profile Section */}
-              {resolvedTag?.driverProfile && (
-                <View style={styles.driverProfileSection}>
-                  {resolvedTag.driverProfile.profilePhotoUrl && (
-                    <Image
-                      source={{ uri: resolvedTag.driverProfile.profilePhotoUrl }}
-                      style={styles.driverPhoto}
-                    />
-                  )}
-                  <Text style={[styles.driverName, { color: colors.text }]}>
-                    {resolvedTag.driverProfile.name || t('scan.driver')}
-                  </Text>
-                  <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
-                    {resolvedTag!.plateNumber}
-                  </Text>
-
-                  {/* Driver Documents */}
-                  {resolvedTag.driverProfile.documents.length > 0 && (
-                    <View style={styles.documentsSection}>
-                      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-                        {t('scan.verifiedDocuments')}
-                      </Text>
-                      <Card padding="none" style={{ marginTop: spacing.default }}>
-                        {resolvedTag.driverProfile.documents.map((doc, idx) => (
-                          <TouchableOpacity
-                            key={idx}
-                            onPress={() => {
-                              setPreviewDocument(doc);
-                              setPreviewModalVisible(true);
-                            }}
-                            style={[
-                              styles.docRow,
-                              idx < resolvedTag.driverProfile!.documents.length - 1 && {
-                                borderBottomWidth: 1,
-                                borderBottomColor: colors.border,
-                              },
-                            ]}
-                            activeOpacity={0.7}>
-                            <View style={[styles.docIconSmall, { backgroundColor: colors.primaryLighter }]}>
-                              <FileText size={18} color={colors.primary} />
-                            </View>
-                            <View style={styles.docInfoSmall}>
-                              <Text style={[styles.docNameSmall, { color: colors.text }]}>
-                                {doc.name}
-                              </Text>
-                              <Text style={[styles.docTypeSmall, { color: colors.textSecondary }]}>
-                                {doc.type}
-                                {doc.expiresAt && ` • Expires ${new Date(doc.expiresAt).toLocaleDateString()}`}
-                              </Text>
-                            </View>
-                            <ChevronRight size={16} color={colors.textMuted} />
-                          </TouchableOpacity>
-                        ))}
-                      </Card>
-                    </View>
-                  )}
+      {shouldShowBottomSheet && (
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              styles.sheetContent, 
+              { paddingBottom: 68 + Math.max(insets.bottom, 16) + 32 }
+            ]}>
+            {createdSession ? (
+              <Animated.View entering={FadeInDown.duration(300)}>
+                <View style={styles.successIcon}>
+                  <ShieldCheck size={28} color={colors.success} />
                 </View>
-              )}
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.requestLogged')}</Text>
+                <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
+                  {t('scan.requestLoggedDesc')}
+                </Text>
+                <View style={styles.metaChips}>
+                  <Badge variant="warning">{formatReasonCode(createdSession!.reasonCode)}</Badge>
+                  <Badge variant="primary">{formatChannel(createdSession!.requestedChannel)}</Badge>
+                </View>
+                <Button onPress={resetFlow}>{t('scan.scanAnother')}</Button>
+              </Animated.View>
+            ) : resolvedTag ? (
+              <Animated.View entering={FadeInDown.duration(300)}>
+                {/* Driver Profile Section */}
+                {resolvedTag?.driverProfile && (
+                  <View style={styles.driverProfileSection}>
+                    {resolvedTag.driverProfile.profilePhotoUrl && (
+                      <Image
+                        source={{ uri: resolvedTag.driverProfile.profilePhotoUrl }}
+                        style={styles.driverPhoto}
+                      />
+                    )}
+                    <Text style={[styles.driverName, { color: colors.text }]}>
+                      {resolvedTag.driverProfile.name || t('scan.driver')}
+                    </Text>
+                    <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
+                      {resolvedTag!.plateNumber}
+                    </Text>
 
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                {t('scan.contactOwner', { plate: resolvedTag!.plateNumber })}
-              </Text>
-              <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                {t('scan.contactDesc')}
-              </Text>
+                    {/* Driver Documents */}
+                    {resolvedTag.driverProfile.documents.length > 0 && (
+                      <View style={styles.documentsSection}>
+                        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+                          {t('scan.verifiedDocuments')}
+                        </Text>
+                        <Card padding="none" style={{ marginTop: spacing.default }}>
+                          {resolvedTag.driverProfile.documents.map((doc, idx) => (
+                            <TouchableOpacity
+                              key={idx}
+                              onPress={() => {
+                                setPreviewDocument(doc);
+                                setPreviewModalVisible(true);
+                              }}
+                              style={[
+                                styles.docRow,
+                                idx < resolvedTag.driverProfile!.documents.length - 1 && {
+                                  borderBottomWidth: 1,
+                                  borderBottomColor: colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.7}>
+                              <View style={[styles.docIconSmall, { backgroundColor: colors.primaryLighter }]}>
+                                <FileText size={18} color={colors.primary} />
+                              </View>
+                              <View style={styles.docInfoSmall}>
+                                <Text style={[styles.docNameSmall, { color: colors.text }]}>
+                                  {doc.name}
+                                </Text>
+                                <Text style={[styles.docTypeSmall, { color: colors.textSecondary }]}>
+                                  {doc.type}
+                                  {doc.expiresAt && ` • Expires ${new Date(doc.expiresAt).toLocaleDateString()}`}
+                                </Text>
+                              </View>
+                              <ChevronRight size={16} color={colors.textMuted} />
+                            </TouchableOpacity>
+                          ))}
+                        </Card>
+                      </View>
+                    )}
+                  </View>
+                )}
 
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.reason')}</Text>
-              <View style={styles.optionWrap}>
-                {CONTACT_REASON_OPTIONS.filter((option) =>
-                  resolvedTag!.allowedReasonCodes.includes(option.value),
-                ).map((option) => {
-                  const selected = selectedReason === option.value;
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => setSelectedReason(option.value)}
-                      activeOpacity={0.85}
-                      style={[
-                        styles.optionChip,
-                        {
-                          backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
-                          borderColor: selected ? colors.primaryLight : colors.border,
-                        },
-                      ]}>
-                      <Text
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>
+                  {t('scan.contactOwner', { plate: resolvedTag!.plateNumber })}
+                </Text>
+                <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
+                  {t('scan.contactDesc')}
+                </Text>
+
+                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.reason')}</Text>
+                <View style={styles.optionWrap}>
+                  {CONTACT_REASON_OPTIONS.filter((option) =>
+                    resolvedTag!.allowedReasonCodes.includes(option.value),
+                  ).map((option) => {
+                    const selected = selectedReason === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => setSelectedReason(option.value)}
+                        activeOpacity={0.85}
                         style={[
-                          styles.optionChipText,
-                          { color: selected ? colors.primary : colors.textSecondary },
+                          styles.optionChip,
+                          {
+                            backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
+                            borderColor: selected ? colors.primaryLight : colors.border,
+                          },
                         ]}>
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            { color: selected ? colors.primary : colors.textSecondary },
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.channel')}</Text>
-              <View style={styles.optionWrap}>
-                {CONTACT_CHANNEL_OPTIONS.filter((option) =>
-                  resolvedTag!.allowedChannels.includes(option.value),
-                ).map((option) => {
-                  const selected = selectedChannel === option.value;
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => setSelectedChannel(option.value)}
-                      activeOpacity={0.85}
-                      style={[
-                        styles.optionChip,
-                        {
-                          backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
-                          borderColor: selected ? colors.primaryLight : colors.border,
-                        },
-                      ]}>
-                      <Text
+                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>{t('scan.channel')}</Text>
+                <View style={styles.optionWrap}>
+                  {CONTACT_CHANNEL_OPTIONS.filter((option) =>
+                    resolvedTag!.allowedChannels.includes(option.value),
+                  ).map((option) => {
+                    const selected = selectedChannel === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => setSelectedChannel(option.value)}
+                        activeOpacity={0.85}
                         style={[
-                          styles.optionChipText,
-                          { color: selected ? colors.primary : colors.textSecondary },
+                          styles.optionChip,
+                          {
+                            backgroundColor: selected ? colors.primaryLighter : colors.surfaceSecondary,
+                            borderColor: selected ? colors.primaryLight : colors.border,
+                          },
                         ]}>
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            { color: selected ? colors.primary : colors.textSecondary },
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
-              <Input
-                label={t('scan.yourName')}
-                value={requesterName}
-                onChangeText={setRequesterName}
-                placeholder={t('scan.namePlaceholder')}
-              />
-              <Input
-                label={t('scan.optionalMessage')}
-                value={message}
-                onChangeText={setMessage}
-                placeholder={t('scan.messagePlaceholder')}
-              />
+                <Input
+                  label={t('scan.yourName')}
+                  value={requesterName}
+                  onChangeText={setRequesterName}
+                  placeholder={t('scan.namePlaceholder')}
+                />
+                <Input
+                  label={t('scan.optionalMessage')}
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder={t('scan.messagePlaceholder')}
+                />
 
-              <View style={styles.formActions}>
-                <Button variant="outline" fullWidth={false} onPress={resetFlow}>
-                  {t('common.cancel')}
-                </Button>
-                <Button fullWidth={false} loading={submitting} onPress={handleSubmitRequest}>
-                  {t('scan.sendRequest')}
+                <View style={styles.formActions}>
+                  <Button variant="outline" fullWidth={false} onPress={resetFlow}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button fullWidth={false} loading={submitting} onPress={handleSubmitRequest}>
+                    {t('scan.sendRequest')}
+                  </Button>
+                </View>
+              </Animated.View>
+            ) : (
+              <View>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.readyToScan')}</Text>
+                <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
+                  {t('scan.readyScanDesc')}
+                </Text>
+                <Input
+                  label={t('scan.manualToken')}
+                  value={manualValue}
+                  onChangeText={setManualValue}
+                  placeholder="https://.../t/your-token or raw token"
+                />
+                {error ? (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+                ) : null}
+                <Button loading={resolving} onPress={() => handleResolve(manualValue)}>
+                  {t('scan.resolveTag')}
                 </Button>
               </View>
-            </Animated.View>
-          ) : (
-            <View>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('scan.readyToScan')}</Text>
-              <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                {t('scan.readyScanDesc')}
-              </Text>
-              <Input
-                label={t('scan.manualToken')}
-                value={manualValue}
-                onChangeText={setManualValue}
-                placeholder="https://.../t/your-token or raw token"
-              />
-              {error ? (
-                <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-              ) : null}
-              <Button loading={resolving} onPress={() => handleResolve(manualValue)}>
-                {t('scan.resolveTag')}
-              </Button>
-            </View>
-          )}
-        </ScrollView>
-      </View>
+            )}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Document Preview Modal */}
       <Modal

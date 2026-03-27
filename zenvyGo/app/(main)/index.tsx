@@ -2,16 +2,17 @@ import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInDown,
@@ -37,7 +38,6 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, EmptyState, SectionHeader } from '@/components/ui';
 import { Colors, borderRadius, shadows, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { apiService } from '@/lib/api';
 import {
   formatChannel,
   formatReasonCode,
@@ -57,7 +57,19 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { t } = useTranslation();
+
+  const quickActionColumns = screenWidth >= 1080 ? 4 : screenWidth >= 760 ? 3 : screenWidth >= 320 ? 2 : 1;
+  const quickActionItemWidth =
+    quickActionColumns === 4
+      ? '23.6%'
+      : quickActionColumns === 3
+        ? '31.8%'
+        : quickActionColumns === 2
+          ? '48.4%'
+          : '100%';
+  const isCompactQuickAction = quickActionColumns >= 3 || screenWidth < 360;
 
   // TanStack Query hooks
   const { data: vehicles = [], isLoading: vehiclesLoading, isRefetching: vehiclesRefetching, refetch: refetchVehicles } = useVehicles();
@@ -126,7 +138,7 @@ export default function HomeScreen() {
           styles.scrollContent,
           { 
             paddingTop: insets.top + spacing.section,
-            paddingBottom: 68 + Math.max(insets.bottom, 16) + 32,
+            paddingBottom: 68 + Math.max(insets.bottom, 16) + (Platform.OS === 'android' ? 56 : 32),
           },
         ]}
         refreshControl={
@@ -336,42 +348,77 @@ export default function HomeScreen() {
         )}
 
         <SectionHeader title={t('home.quickActions')} />
-        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actionsRow}>
-          <QuickAction
-            label={t('home.manageVehicles')}
-            description={t('home.manageVehiclesDesc')}
-            icon={<Car size={24} color={colors.primary} />}
-            colors={colors}
-            colorScheme={colorScheme}
-            onPress={() => router.push('/(main)/vehicles')}
-          />
-          <QuickAction
-            label={t('home.scanQr')}
-            description={t('home.scanQrDesc')}
-            icon={<QrCode size={24} color={colors.info} />}
-            colors={colors}
-            colorScheme={colorScheme}
-            onPress={() => router.push('/(main)/scan')}
-          />
-        </Animated.View>
-        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.actionsRow}>
-          <QuickAction
-            label={t('home.viewAlerts')}
-            description={`${unreadAlerts.length} ${t('home.viewAlertsDesc')}`}
-            icon={<Bell size={24} color={colors.warning} />}
-            colors={colors}
-            colorScheme={colorScheme}
-            onPress={() => router.push('/(main)/alerts')}
-          />
-          <QuickAction
-            label={t('home.settings')}
-            description={t('home.settingsDesc')}
-            icon={<Settings size={24} color={colors.textSecondary} />}
-            colors={colors}
-            colorScheme={colorScheme}
-            onPress={() => router.push('/(main)/settings' as any)}
-          />
-        </Animated.View>
+        <View style={[styles.quickActionsPanel, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+          <View style={styles.quickActionsGrid}>
+            {[
+              {
+                key: 'vehicles',
+                label: t('home.manageVehicles'),
+                description: t('home.manageVehiclesDesc'),
+                badge: String(activeVehicles.length),
+                icon: <Car size={22} color={colors.primary} />,
+                iconBackground: colors.primaryLighter,
+                accentColor: colors.primary,
+                badgeBackground: colors.primaryLighter,
+                onPress: () => router.push('/(main)/vehicles'),
+              },
+              {
+                key: 'scan',
+                label: t('home.scanQr'),
+                description: t('home.scanQrDesc'),
+                badge: String(activeTags.length),
+                icon: <QrCode size={22} color={colors.info} />,
+                iconBackground: colors.infoBackground,
+                accentColor: colors.info,
+                badgeBackground: colors.infoBackground,
+                onPress: () => router.push('/(main)/scan'),
+              },
+              {
+                key: 'alerts',
+                label: t('home.viewAlerts'),
+                description: `${unreadAlerts.length} ${t('home.viewAlertsDesc')}`,
+                badge: unreadAlerts.length > 99 ? '99+' : String(unreadAlerts.length),
+                icon: <Bell size={22} color={colors.warning} />,
+                iconBackground: colors.warningBackground,
+                accentColor: colors.warning,
+                badgeBackground: colors.warningBackground,
+                onPress: () => router.push('/(main)/alerts'),
+              },
+              {
+                key: 'settings',
+                label: t('home.settings'),
+                description: t('home.settingsDesc'),
+                icon: <Settings size={22} color={colors.textSecondary} />,
+                iconBackground: colors.surfaceSecondary,
+                accentColor: colors.textSecondary,
+                badgeBackground: colors.surfaceSecondary,
+                onPress: () => router.push('/(main)/settings' as any),
+              },
+            ].map((action, index) => (
+              <Animated.View
+                key={action.key}
+                entering={FadeInDown.delay(400 + index * 80).springify()}
+                style={[
+                  styles.quickActionCell,
+                  { width: quickActionItemWidth },
+                ]}>
+                <QuickAction
+                  label={action.label}
+                  description={action.description}
+                  badge={action.badge}
+                  ctaLabel={t('home.quickActionCta')}
+                  icon={action.icon}
+                  iconBackground={action.iconBackground}
+                  accentColor={action.accentColor}
+                  badgeBackground={action.badgeBackground}
+                  colors={colors}
+                  onPress={action.onPress}
+                  compact={isCompactQuickAction}
+                />
+              </Animated.View>
+            ))}
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -436,17 +483,27 @@ const AnimatedStatCard = React.memo(function AnimatedStatCard({
 const QuickAction = React.memo(function QuickAction({
   label,
   description,
+  badge,
+  ctaLabel,
   icon,
+  iconBackground,
+  accentColor,
+  badgeBackground,
   colors,
-  colorScheme,
   onPress,
+  compact,
 }: {
   label: string;
   description: string;
+  badge?: string;
+  ctaLabel: string;
   icon: React.ReactNode;
+  iconBackground: string;
+  accentColor: string;
+  badgeBackground: string;
   colors: (typeof Colors)['light'];
-  colorScheme: string | null;
   onPress: () => void;
+  compact: boolean;
 }) {
   const scale = useSharedValue(1);
 
@@ -464,19 +521,48 @@ const QuickAction = React.memo(function QuickAction({
       <Animated.View
         style={[
           styles.quickAction,
-          { backgroundColor: colors.surface },
+          compact && styles.quickActionCompact,
+          { backgroundColor: colors.surface, borderColor: colors.border },
           animatedStyle,
         ]}>
-        <View style={[styles.quickActionIcon, { backgroundColor: colors.surfaceSecondary }]}>
-          {icon}
+        <View style={[styles.quickActionAccent, { backgroundColor: accentColor }]} />
+        <View style={styles.quickActionTop}>
+          <View
+            style={[
+              styles.quickActionIcon,
+              compact && styles.quickActionIconCompact,
+              { backgroundColor: iconBackground },
+            ]}>
+            {icon}
+          </View>
+          {badge ? (
+            <View style={[styles.quickActionBadge, { backgroundColor: badgeBackground }]}>
+              <Text style={[styles.quickActionBadgeText, { color: accentColor }]} numberOfLines={1}>
+                {badge}
+              </Text>
+            </View>
+          ) : null}
         </View>
-        <View style={styles.quickActionCopy}>
-          <Text style={[styles.quickActionLabel, { color: colors.text }]}>{label}</Text>
-          <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]}>
+        <View
+          style={[
+            styles.quickActionCopy,
+            compact && styles.quickActionCopyCompact,
+          ]}>
+          <Text style={[styles.quickActionLabel, { color: colors.text }]} numberOfLines={2}>
+            {label}
+          </Text>
+          <Text
+            style={[styles.quickActionDescription, { color: colors.textSecondary }]}
+            numberOfLines={compact ? 2 : 3}>
             {description}
           </Text>
         </View>
-        <ChevronRight size={18} color={colors.textMuted} />
+        <View style={styles.quickActionFooter}>
+          <Text style={[styles.quickActionCta, { color: accentColor }]}>
+            {ctaLabel}
+          </Text>
+          <ChevronRight style={styles.quickActionChevron} size={16} color={accentColor} />
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -732,40 +818,105 @@ const styles = StyleSheet.create({
     marginTop: spacing.section,
     paddingHorizontal: spacing.section,
   },
-  actionsRow: {
+  quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.component,
+    justifyContent: 'space-between',
+  },
+  quickActionsPanel: {
+    borderRadius: borderRadius['2xl'],
+    borderWidth: 1,
+    padding: spacing.component,
+    marginBottom: spacing.section,
+  },
+  quickActionCell: {
+    minWidth: 0,
     marginBottom: spacing.component,
   },
   quickActionTouchable: {
-    flex: 1,
-    minWidth: 150,
+    width: '100%',
   },
   quickAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
     borderRadius: borderRadius.xl,
-    padding: spacing.section,
-    gap: spacing.component,
+    borderWidth: 1,
+    padding: spacing.component,
+    minHeight: 152,
     ...shadows.sm,
   },
-  quickActionIcon: {
+  quickActionAccent: {
+    height: 3,
     width: 48,
-    height: 48,
+    borderBottomRightRadius: borderRadius.md,
+    marginBottom: spacing.component,
+  },
+  quickActionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.default,
+  },
+  quickActionCompact: {
+    minHeight: 142,
+  },
+  quickActionIcon: {
+    width: 46,
+    height: 46,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  quickActionIconCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+  },
+  quickActionBadge: {
+    maxWidth: '60%',
+    minWidth: 36,
+    paddingHorizontal: spacing.default,
+    paddingVertical: spacing.tight,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   quickActionCopy: {
-    flex: 1,
+    minHeight: 64,
+    justifyContent: 'center',
+  },
+  quickActionCopyCompact: {
+    minHeight: 56,
   },
   quickActionLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
+    lineHeight: 20,
+    flexShrink: 1,
   },
   quickActionDescription: {
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
+    lineHeight: 17,
+    flexShrink: 1,
+  },
+  quickActionFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.section,
+  },
+  quickActionCta: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  quickActionChevron: {
+    flexShrink: 0,
+    marginLeft: spacing.default,
   },
 });

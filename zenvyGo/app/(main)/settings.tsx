@@ -286,7 +286,9 @@ export default function SettingsScreen() {
             <View style={styles.settingsCopy}>
               <Text style={[styles.settingsTitle, { color: colors.text }]}>{t('settings.myDocuments')}</Text>
               <Text style={[styles.settingsHint, { color: colors.textSecondary }]}>
-                {t('settings.myDocumentsHint')}
+                {user?.role === 'taxi'
+                  ? t('settings.myDocumentsHint')
+                  : (t('settings.taxiModeRequired') || 'Taxi mode required')}
               </Text>
             </View>
             <ChevronRight size={20} color={colors.textMuted} />

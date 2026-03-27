@@ -52,6 +52,7 @@
     "viewAlertsDesc": "غير مقروءة",
     "settings": "الإعدادات",
     "settingsDesc": "التفضيلات والمساعدة",
+    "quickActionCta": "فتح",
     "markResolved": "تحديد كمحلول",
     "requestedBy": "طلب بواسطة {{name}}",
     "vehicleRequest": "طلب مركبة"

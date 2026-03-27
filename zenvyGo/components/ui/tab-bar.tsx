@@ -157,7 +157,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const paddingBottom = isAndroid ? Math.max(bottomPad, 16) : Math.max(bottomPad, 12);
 
   return (
-    <View style={[styles.container, { bottom: paddingBottom }]}>...
+    <View style={[styles.container, { bottom: paddingBottom }]}>
       <View style={[
         styles.tabBarWrapper,
         {

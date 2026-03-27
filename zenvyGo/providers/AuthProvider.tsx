@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiService, type AuthUser } from '@/lib/api';
-import { queryClient } from '@/lib/query-client';
+import { useAppStore } from '@/store/app-store';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 
@@ -9,7 +9,6 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   finishAuthentication: (user: AuthUser) => void;
-  updateUser: (user: AuthUser) => void;
   refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -64,9 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(nextUser);
         setStatus('authenticated');
       },
-      updateUser(nextUser) {
-        setUser(nextUser);
-      },
       async refreshUser() {
         const response = await apiService.getCurrentUser();
         if (response.success && response.data) {
@@ -81,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async signOut() {
         await apiService.logout();
-        queryClient.clear();
+        useAppStore.getState().clearData();
         setUser(null);
         setStatus('anonymous');
       },

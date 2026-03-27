@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   Platform,
   Switch,
   Linking,
-  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,20 +31,14 @@ import {
   Settings2,
   Image as ImageIcon,
   File,
-  AlertCircle,
-  Briefcase,
 } from 'lucide-react-native';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/providers/AuthProvider';
 import { Button, Card, Input, Badge } from '@/components/ui';
 import { Colors, borderRadius, spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { apiService, type DriverDocument, type Vehicle } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { useVehicles } from '@/hooks/use-vehicles';
-import { useTags } from '@/hooks/use-tags';
-
+import { useAppStore } from '@/store/app-store';
 
 type DocumentTypeOption = {
   value: 'driving_license' | 'rc' | 'puc' | 'insurance' | 'other';
@@ -66,11 +59,8 @@ export default function DocumentsScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
-  const { t } = useTranslation();
 
-  const { data: vehicles = [] } = useVehicles();
-  const { data: tags = [] } = useTags();
+  const { vehicles, tags } = useAppStore();
 
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,8 +69,6 @@ export default function DocumentsScreen() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DriverDocument | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const lastFetchedAtRef = useRef<number>(0);
-  const CACHE_VALIDITY_MS = 30000;
 
   // Upload form state
   const [selectedDocType, setSelectedDocType] = useState<DocumentTypeOption>(documentTypes[0]);
@@ -96,14 +84,8 @@ export default function DocumentsScreen() {
   } | null>(null);
   const [docTypePickerVisible, setDocTypePickerVisible] = useState(false);
   const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles'>('personal');
 
-  const loadData = useCallback(async (force = false) => {
-    // Skip fetch if cache is still valid
-    if (!force && Date.now() - lastFetchedAtRef.current < CACHE_VALIDITY_MS && documents.length > 0) {
-      return;
-    }
-
+  const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
 
@@ -112,7 +94,6 @@ export default function DocumentsScreen() {
 
       if (res.success && res.data) {
         setDocuments(res.data);
-        lastFetchedAtRef.current = Date.now();
       } else {
         const message = res.error || 'Failed to load documents';
         setLoadError(message);
@@ -125,13 +106,7 @@ export default function DocumentsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [documents.length]);
-
-  const onRefresh = useCallback(() => {
-    setLoading(true);
-    // Force refresh bypassing the 30-second cache
-    loadData(true).finally(() => setLoading(false));
-  }, [loadData]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -140,7 +115,7 @@ export default function DocumentsScreen() {
   );
 
   const groupedDocuments = useMemo(() => {
-    const personal = documents.filter((d) => !d.vehicleId);
+    const personal = documents.filter((d) => d.documentType === 'driving_license' && !d.vehicleId);
     const byVehicle = new Map<string, DriverDocument[]>();
 
     documents.forEach((doc) => {
@@ -306,46 +281,6 @@ export default function DocumentsScreen() {
     resetUploadForm();
   };
 
-  if (user?.role === 'normal') {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={colorScheme === 'dark' ? ['#1E3A8A', '#0F172A'] : ['#1E3A8A', '#3B82F6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + spacing.component }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-              <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
-            </TouchableOpacity>
-            <View style={styles.headerCopy}>
-              <Text style={styles.headerTitle}>{t('documents.title') || 'My Documents'}</Text>
-              <Text style={styles.headerSubtitle}>{t('documents.subtitle') || 'Upload and manage driver documents'}</Text>
-            </View>
-          </View>
-        </LinearGradient>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.section }}>
-          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.large }}>
-            <Briefcase size={48} color={colors.primary} />
-          </View>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: spacing.tight, textAlign: 'center', letterSpacing: -0.5 }}>
-            {t('settings.taxiModeRequired') || 'Taxi Mode Required'}
-          </Text>
-          <Text style={{ fontSize: 16, lineHeight: 24, color: colors.textSecondary, textAlign: 'center', marginBottom: 32, paddingHorizontal: spacing.section }}>
-            {t('settings.taxiModeRequiredDesc') || 'Switch to Taxi mode to upload and manage your driving documents.'}
-          </Text>
-          <Button 
-            onPress={() => router.push('/(main)/settings' as any)} 
-            leftIcon={<Settings2 size={18} color="#FFFFFF" />}
-            style={{ minWidth: 200 }}
-          >
-            {t('settings.enableTaxiMode') || 'Enable Taxi Mode'}
-          </Button>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -394,151 +329,105 @@ export default function DocumentsScreen() {
         </Card>
       )}
 
-      {/* Tab Switcher */}
-      {!loading && !loadError && (
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'personal' && styles.activeTab]}
-            onPress={() => setActiveTab('personal')}>
-            <Text style={[styles.tabText, activeTab === 'personal' && styles.activeTabText, { color: activeTab === 'personal' ? '#FFFFFF' : colors.textSecondary }]}>
-              Personal/Driver
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'vehicles' && styles.activeTab]}
-            onPress={() => setActiveTab('vehicles')}>
-            <Text style={[styles.tabText, activeTab === 'vehicles' && styles.activeTabText, { color: activeTab === 'vehicles' ? '#FFFFFF' : colors.textSecondary }]}>
-              Vehicle-wise
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Content */}
-      {loading && documents.length === 0 ? (
+      {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : loadError && documents.length === 0 ? (
+      ) : loadError ? (
         <View style={styles.loadingContainer}>
           <Text style={[styles.emptyText, { color: colors.text }]}>Unable to load documents</Text>
           <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>{loadError}</Text>
-          <Button onPress={() => loadData(true)} style={{ marginTop: spacing.section }}>
+          <Button onPress={loadData} style={{ marginTop: spacing.section }}>
             Try Again
           </Button>
         </View>
       ) : (
-        <ScrollView 
-          style={styles.scrollContent} 
-          contentContainerStyle={{ paddingBottom: spacing.large }}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.primary} />
-          }>
-          {activeTab === 'personal' ? (
-            <>
-              {/* Personal Documents */}
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PERSONAL DOCUMENTS</Text>
-              <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large, padding: 0, overflow: 'hidden' }}>
-                {groupedDocuments.personal.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <FileText size={32} color={colors.textMuted} />
-                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                      No personal documents uploaded
-                    </Text>
-                    <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                      Upload your driving license or other identity documents
-                    </Text>
-                  </View>
-                ) : (
-                  groupedDocuments.personal.map((doc, index) => (
-                    <DocumentCard
-                      key={doc.id}
-                      document={doc}
-                      colors={colors}
-                      onToggleVisibility={() => handleToggleVisibility(doc)}
-                      onDelete={() => handleDelete(doc)}
-                      onPreview={() => handlePreview(doc)}
-                      isLast={index === groupedDocuments.personal.length - 1}
-                    />
-                  ))
-                )}
-              </Card>
+        <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: spacing.large }}>
+          {/* Personal Documents */}
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PERSONAL DOCUMENTS</Text>
+          <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
+            {groupedDocuments.personal.length === 0 ? (
+              <View style={styles.emptyState}>
+                <FileText size={32} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  No driving license uploaded
+                </Text>
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  Upload your driving license to share with passengers
+                </Text>
+              </View>
+            ) : (
+              groupedDocuments.personal.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  document={doc}
+                  colors={colors}
+                  onToggleVisibility={() => handleToggleVisibility(doc)}
+                  onDelete={() => handleDelete(doc)}
+                  onPreview={() => handlePreview(doc)}
+                />
+              ))
+            )}
+          </Card>
 
-              {/* QR Code Section */}
-              {firstActiveTag && qrToken.length > 0 && (
-                <>
-                  <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MY DRIVER QR CODE</Text>
-                  <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
-                    <View style={styles.qrSection}>
-                      <View style={styles.qrCodeContainer}>
-                        <QRCode
-                          value={qrToken}
-                          size={180}
-                          backgroundColor="#FFFFFF"
-                          color="#000000"
-                        />
-                      </View>
-                      <Text style={[styles.qrHint, { color: colors.textSecondary }]}>
-                        Passengers can scan this QR code to see your visible documents
-                      </Text>
-                    </View>
-                  </Card>
-                </>
-              )}
-            </>
-          ) : (
+          {/* QR Code Section */}
+          {firstActiveTag && qrToken.length > 0 && (
             <>
-              {/* Vehicle Documents */}
-              {activeVehicles.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <AlertCircle size={32} color={colors.textMuted} />
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No active vehicles found</Text>
-                  <Button
-                    variant="ghost"
-                    onPress={() => router.push('/(main)/vehicles' as any)}
-                    style={{ marginTop: spacing.default }}>
-                    Manage Vehicles
-                  </Button>
+              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MY DRIVER QR CODE</Text>
+              <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
+                <View style={styles.qrSection}>
+                  <View style={styles.qrCodeContainer}>
+                    <QRCode
+                      value={qrToken}
+                      size={180}
+                      backgroundColor="white"
+                      color={colors.text}
+                    />
+                  </View>
+                  <Text style={[styles.qrHint, { color: colors.textSecondary }]}>
+                    Passengers can scan this QR code to see your visible documents
+                  </Text>
                 </View>
-              ) : (
-                activeVehicles.map((vehicle) => {
-                  const vehicleDocs = groupedDocuments.byVehicle.get(vehicle.id) ?? [];
-                  return (
-                    <View key={vehicle.id}>
-                      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-                        {vehicle.plateNumber} - {vehicle.make || ''} {vehicle.model || ''}
-                      </Text>
-                      <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large, padding: 0, overflow: 'hidden' }}>
-                        {vehicleDocs.length === 0 ? (
-                          <View style={styles.emptyState}>
-                            <FileText size={32} color={colors.textMuted} />
-                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                              No documents for this vehicle
-                            </Text>
-                            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                              Upload RC, PUC, or Insurance documents
-                            </Text>
-                          </View>
-                        ) : (
-                          vehicleDocs.map((doc, index) => (
-                            <DocumentCard
-                              key={doc.id}
-                              document={doc}
-                              colors={colors}
-                              onToggleVisibility={() => handleToggleVisibility(doc)}
-                              onDelete={() => handleDelete(doc)}
-                              onPreview={() => handlePreview(doc)}
-                              isLast={index === vehicleDocs.length - 1}
-                            />
-                          ))
-                        )}
-                      </Card>
-                    </View>
-                  );
-                })
-              )}
+              </Card>
             </>
           )}
+
+          {/* Vehicle Documents */}
+          {activeVehicles.map((vehicle) => {
+            const vehicleDocs = groupedDocuments.byVehicle.get(vehicle.id) ?? [];
+            return (
+              <View key={vehicle.id}>
+                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+                  {vehicle.plateNumber} - {vehicle.make || ''} {vehicle.model || ''}
+                </Text>
+                <Card style={{ marginHorizontal: spacing.section, marginBottom: spacing.large }}>
+                  {vehicleDocs.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <FileText size={32} color={colors.textMuted} />
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                        No documents for this vehicle
+                      </Text>
+                      <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                        Upload RC, PUC, or Insurance documents
+                      </Text>
+                    </View>
+                  ) : (
+                    vehicleDocs.map((doc) => (
+                      <DocumentCard
+                        key={doc.id}
+                        document={doc}
+                        colors={colors}
+                        onToggleVisibility={() => handleToggleVisibility(doc)}
+                        onDelete={() => handleDelete(doc)}
+                        onPreview={() => handlePreview(doc)}
+                      />
+                    ))
+                  )}
+                </Card>
+              </View>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -758,71 +647,34 @@ export default function DocumentsScreen() {
   );
 }
 
-const DocumentCard = React.memo(function DocumentCard({
+function DocumentCard({
   document,
   colors,
   onToggleVisibility,
   onDelete,
   onPreview,
-  isLast,
 }: {
   document: DriverDocument;
   colors: any;
   onToggleVisibility: () => void;
   onDelete: () => void;
   onPreview: () => void;
-  isLast?: boolean;
 }) {
-  const getStatusInfo = (doc: DriverDocument) => {
-    if (doc.status === 'rejected') return { label: 'Rejected', variant: 'danger' as const };
-    if (doc.status === 'pending') return { label: 'Pending', variant: 'warning' as const };
-    
-    if (doc.expiresAt) {
-      const expiryDate = new Date(doc.expiresAt);
-      const now = new Date();
-      const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays < 0) return { label: 'Expired', variant: 'danger' as const };
-      if (diffDays <= 30) return { label: 'Expiring Soon', variant: 'warning' as const };
-    }
-    
-    return { label: 'Verified', variant: 'success' as const };
-  };
-
-  const status = getStatusInfo(document);
-
   return (
-    <TouchableOpacity 
-      onPress={onPreview} 
-      style={[
-        styles.docCard, 
-        !isLast && { borderBottomColor: colors.border, borderBottomWidth: 1 }
-      ]} 
-      activeOpacity={0.7}>
+    <TouchableOpacity onPress={onPreview} style={[styles.docCard, { borderBottomColor: colors.border }]} activeOpacity={0.7}>
       <View style={styles.docMain}>
-        <View style={[styles.docIcon, { backgroundColor: colors.surfaceSecondary }]}>
-          <FileText size={22} color={colors.primary} />
+        <View style={[styles.docIcon, { backgroundColor: colors.primaryLighter }]}>
+          <FileText size={20} color={colors.primary} />
         </View>
         <View style={styles.docInfo}>
           <Text style={[styles.docName, { color: colors.text }]}>{document.documentName}</Text>
-          <View style={styles.docMetaRow}>
-            <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
-              {document.documentNumber ? `${document.documentNumber}` : 'No number'}
-            </Text>
-            <View style={[styles.dot, { backgroundColor: colors.textMuted }]} />
-            <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
-              {document.expiresAt ? `Exp: ${new Date(document.expiresAt).toLocaleDateString()}` : 'No expiry'}
-            </Text>
-          </View>
+          <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
+            {document.expiresAt ? `Expires: ${new Date(document.expiresAt).toLocaleDateString()}` : 'No expiry date'}
+          </Text>
         </View>
-        <View style={styles.badgeColumn}>
-          <Badge variant={status.variant}>
-            {status.label}
-          </Badge>
-          <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'}>
-            {document.isVisibleToPassenger ? 'Public' : 'Private'}
-          </Badge>
-        </View>
+        <Badge variant={document.isVisibleToPassenger ? 'success' : 'default'}>
+          {document.isVisibleToPassenger ? 'Visible' : 'Hidden'}
+        </Badge>
       </View>
       <View style={styles.docActions}>
         <TouchableOpacity
@@ -834,9 +686,9 @@ const DocumentCard = React.memo(function DocumentCard({
           {document.isVisibleToPassenger ? (
             <EyeOff size={16} color={colors.textSecondary} />
           ) : (
-            <Eye size={16} color={colors.primary} />
+            <Eye size={16} color={colors.textSecondary} />
           )}
-          <Text style={[styles.actionText, { color: document.isVisibleToPassenger ? colors.textSecondary : colors.primary }]}>
+          <Text style={[styles.actionText, { color: colors.textSecondary }]}>
             {document.isVisibleToPassenger ? 'Hide' : 'Show'}
           </Text>
         </TouchableOpacity>
@@ -852,7 +704,7 @@ const DocumentCard = React.memo(function DocumentCard({
       </View>
     </TouchableOpacity>
   );
-});
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -867,38 +719,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.section,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.component,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   headerCopy: {
     flex: 1,
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontSize: 24,
+    fontWeight: '700',
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 14,
-    marginTop: 2,
-    fontWeight: '500',
+    marginTop: 4,
   },
   addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -908,29 +754,23 @@ const styles = StyleSheet.create({
     gap: spacing.tight,
   },
   actionButtonHeader: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   infoBanner: {
     gap: spacing.default,
   },
   infoBannerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: -0.3,
   },
   infoBannerText: {
-    fontSize: 15,
-    lineHeight: 22,
-    opacity: 0.85,
+    fontSize: 14,
+    lineHeight: 20,
   },
   infoBannerCta: {
     alignSelf: 'flex-start',
@@ -938,12 +778,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.component,
     paddingVertical: spacing.default,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.default,
     gap: spacing.tight,
   },
   infoBannerCtaText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -954,10 +794,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
     marginTop: spacing.large,
     marginBottom: spacing.default,
     marginHorizontal: spacing.section,
@@ -965,20 +805,16 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.large * 2,
-    paddingHorizontal: spacing.large,
   },
   emptyText: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     marginTop: spacing.component,
-    letterSpacing: -0.3,
   },
   emptyHint: {
-    fontSize: 15,
+    fontSize: 14,
     marginTop: spacing.tight,
     textAlign: 'center',
-    lineHeight: 22,
-    opacity: 0.8,
   },
   qrSection: {
     alignItems: 'center',
@@ -987,63 +823,31 @@ const styles = StyleSheet.create({
   qrCodeContainer: {
     padding: spacing.section,
     backgroundColor: 'white',
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.section,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
   },
   qrHint: {
     fontSize: 14,
     textAlign: 'center',
-    paddingHorizontal: spacing.large,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(30, 58, 138, 0.05)',
-    marginHorizontal: spacing.section,
-    padding: 4,
-    borderRadius: borderRadius.lg,
-    marginTop: spacing.section,
-    marginBottom: spacing.tight,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: borderRadius.md,
-  },
-  activeTab: {
-    backgroundColor: '#1E3A8A',
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  activeTabText: {
-    fontWeight: '700',
+    paddingHorizontal: spacing.section,
   },
   docCard: {
-    padding: spacing.default,
+    paddingVertical: spacing.component,
+    paddingHorizontal: spacing.card,
+    borderBottomWidth: 1,
   },
   docMain: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: spacing.default,
   },
   docIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.default,
+    marginRight: spacing.component,
   },
   docInfo: {
     flex: 1,
@@ -1053,92 +857,61 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
-  docMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   docMeta: {
-    fontSize: 13,
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    marginHorizontal: 10,
-  },
-  badgeColumn: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  statusBadge: {
-    // handled by Badge component variants
-  },
-  visibilityBadge: {
-    // handled by Badge component variants
+    fontSize: 14,
   },
   docActions: {
     flexDirection: 'row',
-    marginTop: spacing.default,
     gap: spacing.default,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: borderRadius.md,
+    paddingVertical: spacing.default,
+    paddingHorizontal: spacing.component,
+    borderRadius: borderRadius.default,
     gap: 6,
   },
   actionText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalCard: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
     maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.large,
-    paddingVertical: spacing.large,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.card,
+    paddingVertical: spacing.section,
+    borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '700',
     flex: 1,
-    letterSpacing: -0.5,
   },
   modalBody: {
-    padding: spacing.large,
+    padding: spacing.card,
   },
   modalFooter: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.large,
+    paddingHorizontal: spacing.card,
     paddingVertical: spacing.section,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingBottom: Platform.OS === 'ios' ? spacing.large * 2 : spacing.section,
+    borderTopWidth: 1,
   },
   inputLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: spacing.tight,
-    marginTop: spacing.component,
-    letterSpacing: -0.3,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: spacing.default,
+    marginTop: spacing.section,
   },
   picker: {
     flexDirection: 'row',
@@ -1146,20 +919,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.section,
     paddingVertical: spacing.component,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.default,
     borderWidth: 1,
   },
   pickerText: {
     fontSize: 16,
-    fontWeight: '500',
     flex: 1,
   },
   visibilityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: spacing.component,
-    marginTop: spacing.component,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.section,
+    marginTop: spacing.section,
+    borderTopWidth: 1,
   },
   visibilityInfo: {
     flex: 1,
@@ -1167,17 +939,14 @@ const styles = StyleSheet.create({
   },
   visibilityLabel: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     marginBottom: 4,
-    letterSpacing: -0.3,
   },
   visibilityHint: {
     fontSize: 14,
-    lineHeight: 20,
-    opacity: 0.8,
   },
   fileSection: {
-    marginTop: spacing.component,
+    marginTop: spacing.section,
   },
   fileButtons: {
     flexDirection: 'row',
@@ -1189,13 +958,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.section,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.default,
     borderWidth: 1,
-    borderStyle: 'dashed',
     gap: spacing.default,
   },
   fileButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   selectedFile: {
@@ -1203,73 +971,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.component,
     paddingHorizontal: spacing.section,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.default,
     borderWidth: 1,
     gap: spacing.default,
   },
   selectedFileName: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 14,
   },
   pickerModal: {
-    margin: spacing.large,
-    borderRadius: 24,
+    margin: spacing.card,
+    borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
   },
   pickerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    padding: spacing.large,
-    letterSpacing: -0.4,
+    fontSize: 18,
+    fontWeight: '700',
+    padding: spacing.card,
   },
   pickerOption: {
     paddingVertical: spacing.section,
-    paddingHorizontal: spacing.large,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.card,
+    borderBottomWidth: 1,
   },
   pickerOptionText: {
-    fontSize: 17,
-    fontWeight: '500',
+    fontSize: 16,
   },
   previewCard: {
     flex: 1,
-    marginTop: spacing.large * 3,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 10,
+    marginTop: spacing.large * 2,
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
   },
   previewBody: {
     flex: 1,
-    padding: spacing.large,
   },
   previewImage: {
     width: '100%',
     height: '100%',
-    borderRadius: borderRadius.lg,
   },
   pdfPreview: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.large,
-    backgroundColor: 'rgba(0,0,0,0.02)',
-    borderRadius: borderRadius.lg,
   },
   pdfName: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     marginTop: spacing.section,
     textAlign: 'center',
-    letterSpacing: -0.3,
   },
 });

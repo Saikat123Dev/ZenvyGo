@@ -52,6 +52,7 @@
     "viewAlertsDesc": "unread",
     "settings": "Settings",
     "settingsDesc": "Preferences & help",
+    "quickActionCta": "Open",
     "markResolved": "Mark Resolved",
     "requestedBy": "Requested by {{name}}",
     "vehicleRequest": "Vehicle request"

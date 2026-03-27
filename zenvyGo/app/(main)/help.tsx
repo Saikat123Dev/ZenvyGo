@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -158,7 +159,9 @@ export default function HelpScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { t } = useTranslation();
+  const isCompactScreen = screenWidth < 380;
 
   const handleEmailSupport = () => {
     Linking.openURL('mailto:support@zenvygo.com?subject=ZenvyGo Support Request');
@@ -208,36 +211,60 @@ export default function HelpScreen() {
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleEmailSupport}
-            style={[styles.contactCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            style={[
+              styles.contactCard,
+              isCompactScreen ? styles.contactCardFull : styles.contactCardHalf,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}>
             <View style={[styles.contactIcon, { backgroundColor: colors.primaryLighter }]}>
               <Mail size={24} color={colors.primary} />
             </View>
             <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.email')}</Text>
-            <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.contactHint, { color: colors.textSecondary }]}
+              numberOfLines={2}
+              minimumFontScale={0.9}
+              adjustsFontSizeToFit>
               {t('help.emailHint')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleWhatsApp}
-            style={[styles.contactCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            style={[
+              styles.contactCard,
+              isCompactScreen ? styles.contactCardFull : styles.contactCardHalf,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}>
             <View style={[styles.contactIcon, { backgroundColor: colors.successBackground }]}>
               <MessageCircle size={24} color={colors.success} />
             </View>
             <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.whatsapp')}</Text>
-            <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.contactHint, { color: colors.textSecondary }]}
+              numberOfLines={2}
+              minimumFontScale={0.9}
+              adjustsFontSizeToFit>
               {t('help.whatsappHint')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleCallSupport}
-            style={[styles.contactCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            style={[
+              styles.contactCard,
+              styles.contactCardFull,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}>
             <View style={[styles.contactIcon, { backgroundColor: colors.warningBackground }]}>
               <Phone size={24} color={colors.warning} />
             </View>
             <Text style={[styles.contactLabel, { color: colors.text }]}>{t('help.call')}</Text>
-            <Text style={[styles.contactHint, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.contactHint, { color: colors.textSecondary }]}
+              numberOfLines={2}
+              minimumFontScale={0.9}
+              adjustsFontSizeToFit>
               {t('help.callHint')}
             </Text>
           </TouchableOpacity>
@@ -334,15 +361,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.component,
+    justifyContent: 'space-between',
   },
   contactCard: {
-    flex: 1,
-    minWidth: 100,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
-    padding: spacing.section,
+    paddingVertical: spacing.section,
+    paddingHorizontal: spacing.component,
     alignItems: 'center',
+    justifyContent: 'center',
     ...shadows.sm,
+  },
+  contactCardHalf: {
+    width: '48%',
+    minHeight: 136,
+  },
+  contactCardFull: {
+    width: '100%',
+    minHeight: 132,
   },
   contactIcon: {
     width: 48,
@@ -350,16 +386,22 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.component,
+    marginBottom: spacing.default,
   },
   contactLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   contactHint: {
-    fontSize: 11,
-    marginTop: 2,
+    width: '100%',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: spacing.tight,
+    paddingHorizontal: spacing.tight,
     textAlign: 'center',
+    fontWeight: '500',
+    flexShrink: 1,
   },
   faqCard: {
     marginBottom: spacing.component,
